@@ -18,6 +18,8 @@
 
 ## 二、安装与配置
 
+如果你啥也不懂，你直接点启动.bat，会自行安装并启动。
+
 ```powershell
 cd D:\game\eve_esi
 python -m venv .venv
