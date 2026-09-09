@@ -32,6 +32,8 @@ MARKET_ITEMS = [
 ]
 MARKET_CACHE_TTL = 60  # 秒
 ITEM_PRICE_CACHE_TTL = 120  # 物品多中心价格缓存(秒)
+GLOBAL_PLEX_REGION = 19000001  # CCP 全球 PLEX 市场(2025-07 上线),PLEX/伊甸币在此交易
+PLEX_TYPE_ID = 44992
 # 主要贸易中心
 ITEM_REGIONS = [
     (10000002, "吉他 Jita"),
@@ -84,8 +86,12 @@ EXTRACT_THRESHOLD_SP = 5_500_000
 EXTRACTOR_SP = 500_000
 
 
-def extractor_stats(total_sp):
-    """返回 (可提取SP, 可提取器数量)。未分配(自由)技能点不能提取，不计入。"""
+def extractor_stats(total_sp, unallocated_sp=None):
+    """按“已训练技能点”计算可提取量（未分配技能点不计入、不提取）。
+
+    公式：(已训练技能点 − 550万) ÷ 50万 向下取整。
+    total_sp 为 None 时按无数据处理。
+    """
     if total_sp is None:
         return 0, 0
     extractable = max(0, total_sp - EXTRACT_THRESHOLD_SP)
@@ -212,8 +218,8 @@ def character_payload(row: dict) -> dict:
         "portrait_url": f"{config.IMAGE_BASE}/characters/{row['character_id']}/portrait?size=128",
         "total_sp": row["total_sp"],
         "unallocated_sp": row["unallocated_sp"],
-        "extractable_sp": extractor_stats(row["total_sp"])[0],
-        "extractor_count": extractor_stats(row["total_sp"])[1],
+        "extractable_sp": extractor_stats(row["total_sp"], row["unallocated_sp"])[0],
+        "extractor_count": extractor_stats(row["total_sp"], row["unallocated_sp"])[1],
         "wallet_isk": row["wallet_isk"],
         "owner_hash": row["owner_hash"],
         "account_name": row["account_name"],
@@ -296,19 +302,8 @@ def callback(
 
 @app.get("/api/characters")
 def api_characters():
-    esi: EsiClient = app.state.esi
-    with _refresh_lock:
-        rows = db.list_characters()
-        for row in rows:
-            if row["needs_reauth"]:
-                continue
-            if is_stale(row):
-                try:
-                    refresh_character(esi, row["character_id"], force=False)
-                except (EsiError, HTTPException):
-                    pass  # 保留缓存数据，前端仍可展示
-        rows = db.list_characters()
-    return [character_payload(r) for r in rows]
+    """仅返回本地缓存数据(立即响应);刷新由前端逐个轮流调用刷新接口完成,避免首屏阻塞。"""
+    return [character_payload(r) for r in db.list_characters()]
 
 
 @app.post("/api/characters/{character_id}/refresh")
@@ -463,8 +458,11 @@ def api_market_item(type_id: int, refresh: int = 0):
         if refresh or not cached or now - cached["ts"] > ITEM_PRICE_CACHE_TTL:
             names = resolve_skill_names(esi, [type_id])
             name = names.get(type_id, str(type_id))
+            regions = list(ITEM_REGIONS)
+            if type_id == PLEX_TYPE_ID:
+                regions = [(GLOBAL_PLEX_REGION, "全球市场(PLEX)")] + regions
             hubs = []
-            for rid, rname in ITEM_REGIONS:
+            for rid, rname in regions:
                 try:
                     buy = esi.get_market_orders(rid, "buy", type_id)
                     sell = esi.get_market_orders(rid, "sell", type_id)
@@ -525,6 +523,10 @@ def api_set_account_name(character_id: int, payload: AccountNameIn):
 def api_delete(character_id: int):
     db.delete_character(character_id)
     return {"ok": True}
+
+
+
+
 
 
 

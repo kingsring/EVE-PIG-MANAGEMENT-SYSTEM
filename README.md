@@ -1,114 +1,68 @@
-# EVE 猪场管理器
+# EVE 工具箱（技能点查看器）
 
-本地自用的 Web 应用：通过 CCP 官方 EVE SSO 登录并绑定多个游戏角色，展示每个角色的**总技能点**与**技能队列（含当前训练进度）**。
+一个运行在你**自己电脑**上的 EVE 小工具：绑定你的角色后，可以查看技能点、钱包、训练队列与实时进度、可提取技能器数量与利润、市场行情（任意物品多中心价格 + 伊甸币全球价）等。所有数据都存在你本机，不经过第三方服务器。
 
-- 后端：Python 3.12 + FastAPI + httpx + SQLite（标准库）
-- 前端：FastAPI 直接托管的单页 HTML/CSS/原生 JS（无需 Node）
-- 仅监听 `127.0.0.1:8000`，数据存本机 `data/eve_esi.db`
+---
 
-## 一、注册 CCP 开发者应用（一次性，需你自己完成）
+## 🚀 快速开始（推荐方式：双击启动）
 
-1. 用 EVE 账号登录 https://developers.eveonline.com ，进入 Applications → Create New Application。
-2. Connection Type 选择 **Authentication & API Access**；Permissions 全部勾选
-3. Callback URL 填：`http://localhost:8000/callback`
-4. 创建后记下 **Client ID** 和 **Secret Key**。
-   - 注意：若之后修改权限范围，所有已绑定角色都需要重新授权。
+1. **安装 Python**
+   - 到 https://www.python.org/downloads/ 下载 **Python 3.12 或更高版本**；
+   - 安装时**务必勾选 “Add Python to PATH”**。
 
+2. **双击 `启动.bat`**
+   - 第一次运行会自动：创建虚拟环境 → 联网安装依赖 → 生成 `.env` 文件；
+   - 若提示需要填写 `.env`，请看第 3 步，填好后**再次双击 `启动.bat`**。
 
+3. **填一次自己的 CCP 应用凭据（每人各填各的）**
+   - 用记事本打开解压目录里的 `.env`，填入你的：
+     - `EVE_CLIENT_ID`
+     - `EVE_CLIENT_SECRET`
+   - 没有的话，按下方“CCP 应用注册”一节申请（5 分钟）。
 
+4. **再次双击 `启动.bat`**
+   - 会自动打开浏览器 http://localhost:8000 ；
+   - 点「＋ 添加角色」，用你的 EVE 账号授权即可开始使用。
+   - 关闭黑色启动窗口 = 停止服务。
 
-## 二、安装与配置
+> 物品名索引已随包附带，**无需再下载任何数据**。
 
-```
-   点击 启动.bat 一键启动  
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动  
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动  
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动  
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动  
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动  
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动
-   点击 启动.bat 一键启动  
-```
+---
 
-```powershell
-cd D:\game\eve_esi
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+## CCP 应用注册（一次性，每人需要）
 
-# 复制配置模板并填入你的 Client ID / Secret
-Copy-Item .env.example .env
-# 用编辑器打开 .env 填写 EVE_CLIENT_ID / EVE_CLIENT_SECRET
-```
+1. 登录 https://developers.eveonline.com （用 EVE 账号）；
+2. Applications → Create New Application；
+3. Connection Type 选 **Authentication & API Access**；
+4. Permissions 勾选：
+   - `esi-skills.read_skills.v1`
+   - `esi-skills.read_skillqueue.v1`
+   - `esi-wallet.read_character_wallet.v1`（钱包余额；不勾则钱包栏为空，不影响其它功能）
+5. **Callback URL 填：`http://localhost:8000/callback`**
+6. 创建后复制 **Client ID / Secret Key** 填入本机 `.env`。
 
-## 三、启动
+> 注意：如果之后在开发者平台**修改过权限范围**，已绑定角色需要重新授权一次。
 
-```powershell
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
+---
 
-浏览器打开 **http://localhost:8000**（请始终使用 localhost，与回调地址保持一致），点击右上角「＋ 添加角色」→ 跳转 EVE 官方登录页 → 选择角色并授权 → 自动回到首页显示数据。同一账号下的多个角色需分别登录一次。
+## 主要功能
 
-- **刷新**：卡片上的“刷新”按钮立即更新该角色；打开首页时数据超过 5 分钟会自动刷新。
-- **移除**：删除该角色及其本地令牌与缓存。
-- 若角色“授权失效”（例如修改了游戏密码或应用权限变更），卡片会提示，点击“重新授权”重新登录一次即可。
+- 技能点查看（总技能点含未分配，标注已训练/未分配分解）
+- 每个角色的钱包余额与“全部角色总 ISK”
+- 技能训练队列：当前训练技能实时进度、预计完成与剩余时间
+- 可提取技能器数量与利润（基于已训练技能点，未分配不参与）
+- 按账号分组展示（账号名可打码、可点击改名）
+- 列表 / 卡片两种视图，可“隐藏角色名”保护隐私
+- 市场行情：吉他等 5 中心价格；任意物品按名称/分类查询；伊甸币(PLEX)全球市场价格
+- 页面打开即显示本地缓存（秒开），随后在后台逐个轮流自动刷新角色
 
-## 四、运行测试
+## 常见问题
 
-```powershell
-python -m pytest -q
-```
+- **打不开/端口被占**：确保上一次的黑色窗口已关闭，再双击 `启动.bat`。
+- **改了 `.env` 不生效**：保存后**重新双击** `启动.bat` 重启服务。
+- **钱包不显示**：该角色授权时没含钱包权限，或开发者平台权限列表没勾钱包 → 重新授权一次即可。
+- **数据在哪**：本目录 `data\eve_esi.db`（你的角色与缓存），删除即清空全部角色。
 
-## 目录结构
+## 隐私提醒
 
-```
-app/
-  main.py      # FastAPI 入口与路由（SSO 回调、JSON API、刷新逻辑）
-  esi.py       # EVE SSO / ESI 客户端与技能队列数据加工
-  db.py        # SQLite 存取
-  config.py    # 配置（读取 .env）
-  static/      # 前端页面
-data/          # SQLite 数据库（自动创建，已被 .gitignore 忽略）
-tests/         # 自动化测试（Mock CCP 接口，无需真实账号）
-```
-
-## 安全说明
-
-应用只面向本机个人使用：不提供公网访问、无 Web 端账号系统，令牌明文保存在本机数据库中。请不要把 `data/`、`.env` 或 `EVE_CLIENT_SECRET` 分享给他人；若日后要部署到公网，需另行加固（HTTPS、加密存储、访问控制等）。
-
-## 物品名本地索引（模糊搜索）
-
-市场页的"物品价格查询"支持中/英文**部分名称**模糊搜索，基于本地物品名索引
-（`data/item_index.db`，约 27k 个已发布物品的中英文名，数据来自 CCP 静态数据）。
-
-索引已在本机构建好。若索引被删除或换了机器，重新构建一次即可（一次性下载约 170MB）：
-
-```powershell
-python -m app.name_index --build
-```
-
-其他可用命令：`python -m app.name_index --count`、`python -m app.name_index --search 灾难`、`python -m app.name_index --attach`（补齐物品分类信息，供市场页“按分类浏览”使用；本机已执行）。
-索引文件位于 `data/`（已被 .gitignore 忽略，不会提交）。
-
+`.env`（CCP 密钥）与 `data\eve_esi.db`（角色令牌/数据）只属于你，**不要分享/上传**。需要发给别人时，请发原始解压包而不是你运行过的目录。

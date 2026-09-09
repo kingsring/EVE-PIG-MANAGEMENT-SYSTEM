@@ -38,7 +38,7 @@ function pct(p) { return p == null ? null : Math.round(p * 100); }
 
 function extractLine(c) {
   if (c.total_sp == null) return "";
-  const tip = "已训练技能点超过 550 万的部分，每 50 万 SP 可提取 1 个，提取后至少保留 550 万（未分配技能点不计）；利润 = 单利 × 可提个数，单利 = 大型技能注入器中间价 − 技能提取器中间价";
+  const tip = "已训练技能点(不含未分配)超过 550 万的部分，每 50 万 SP 可提取 1 个（未分配不参与提取/售卖）；利润 = 单利 × 可提个数，单利 = 大型技能注入器中间价 − 技能提取器中间价";
   if (!c.extractor_count) {
     const remain = c.extractable_sp || 0;
     return `<div class="extract" title="${tip}">可提 <b>0</b> 个（超出 550 万部分仅 ${fmtNum(remain)} SP，不足 50 万）</div>`;
@@ -91,11 +91,15 @@ function tileHtml(c) {
     : "";
   let hint = "";
   const q0 = (c.queue || [])[0];
-  if (!c.needs_reauth && q0) {
-    const to = q0.target_level != null ? `Lv${q0.target_level}` : "Lv?";
-    hint = `<div class="train-hint" title="${escapeHtml(q0.name)}">训练中 <b>${escapeHtml(q0.name)}</b> → ${to}</div>`;
-  } else if (!c.needs_reauth && c.total_sp != null) {
-    hint = `<div class="train-hint">未在训练</div>`;
+  if (!c.needs_reauth && c.total_sp != null) {
+    if (q0 && isActiveTraining(c)) {
+      const to = q0.target_level != null ? `Lv${q0.target_level}` : "Lv?";
+      hint = `<div class="train-hint" title="${escapeHtml(q0.name)}">训练中 <b>${escapeHtml(q0.name)}</b> → ${to}</div>`;
+    } else if (q0) {
+      hint = `<div class="train-hint paused" title="队列中有技能但未在训练（可能 Omega 过期或排队受限制）">⏸ 队列暂停</div>`;
+    } else {
+      hint = `<div class="train-hint">未在训练</div>`;
+    }
   }
   const unalloc = c.unallocated_sp != null
     ? `<div class="unalloc">未分配 <b>${fmtNum(c.unallocated_sp)}</b> SP</div>`
@@ -106,7 +110,7 @@ function tileHtml(c) {
     ${cloneBadge(c)}
     <img class="avatar" src="${escapeHtml(c.portrait_url)}" alt="" loading="lazy">
     <div class="name">${nameMaskSpan(c.character_name)}</div>
-    <span class="sp-num">${fmtNum(c.total_sp)}</span>
+    <span class="sp-num" title="${totalSpTip(c)}">${totalSpDisplay(c)}</span>
     <span class="sp-cap">技 能 点</span>
     ${walletLine(c)}
     ${unalloc}
@@ -118,6 +122,20 @@ function tileHtml(c) {
 }
 
 /* ---------- 详情弹窗 ---------- */
+function fmtRemain(iso) {
+  if (!iso) return "";
+  const diff = new Date(iso).getTime() - Date.now();
+  if (!Number.isFinite(diff) || diff <= 0) return "";
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h >= 48) {
+    const d = Math.floor(h / 24);
+    return `剩余约 ${d} 天 ${h % 24} 小时`;
+  }
+  if (h >= 1) return `剩余约 ${h} 小时 ${m} 分`;
+  return `剩余约 ${m} 分钟`;
+}
+
 function queueHtml(queue) {
   if (!queue || !queue.length) {
     return '<div class="queue-item none">未在训练，队列为空</div>';
@@ -125,13 +143,31 @@ function queueHtml(queue) {
   return queue.map((q, i) => {
     const from = q.current_level != null ? `Lv${q.current_level}` : "Lv0";
     const to = q.target_level != null ? `Lv${q.target_level}` : "Lv?";
-    const bar = q.progress != null
-      ? `<div class="progress"><div class="progress-inner" style="width:${pct(q.progress)}%"></div></div>`
+    const active0 = i === 0 && !!q.finish_date && !!q.training_start_date;
+    let livePct = null;
+    let remain = "";
+    if (active0) {
+      const st = new Date(q.training_start_date).getTime();
+      const fn = new Date(q.finish_date).getTime();
+      if (Number.isFinite(st) && Number.isFinite(fn) && fn > st) {
+        const f = Math.min(1, Math.max(0, (Date.now() - st) / (fn - st)));
+        livePct = Math.round(f * 100);
+      }
+      remain = fmtRemain(q.finish_date);
+    }
+    const barPct = livePct != null ? livePct : (q.progress != null ? pct(q.progress) : null);
+    const bar = barPct != null
+      ? `<div class="progress"><div class="progress-inner" style="width:${barPct}%"></div></div>`
       : "";
     const finish = q.finish_date
-      ? `<span class="sub">预计完成：${fmtTime(q.finish_date)}</span>` : "";
-    const label = i === 0 ? "训练中" : `队列 ${i}`;
-    const progText = q.progress != null ? `${pct(q.progress)}%` : "—";
+      ? `<span class="sub">${fmtTime(q.finish_date)}${remain ? ` · ${remain}` : ""}</span>` : "";
+    let label;
+    if (i === 0) {
+      label = active0 ? "训练中(实时)" : "⏸ 暂停";
+    } else {
+      label = `队列 ${i}`;
+    }
+    const progText = barPct != null ? `${barPct}%` : "—";
     return `
       <div class="queue-item${i === 0 ? " training" : ""}">
         <div class="queue-title">
@@ -141,13 +177,12 @@ function queueHtml(queue) {
         </div>
         ${bar}
         <div class="queue-meta">
-          <span class="sub">进度 ${progText}</span>
+          <span class="sub">进度 ${progText}${livePct != null ? "（实时推算）" : ""}</span>
           ${finish}
         </div>
       </div>`;
   }).join("");
 }
-
 function detailHtml(c) {
   let body;
   if (c.needs_reauth) {
@@ -156,9 +191,9 @@ function detailHtml(c) {
   } else {
     const speedTxt = c.training_speed
       ? `<div class="sub speed-sub">⚡ 训练速度 ${fmtNum(c.training_speed)} SP/小时</div>` : "";
-    body = `<div class="sp-row"><span class="sp-num">${fmtNum(c.total_sp)}</span>
+    body = `<div class="sp-row"><span class="sp-num" title="${totalSpTip(c)}">${totalSpDisplay(c)}</span>
               <span class="sp-label">技能点</span></div>
-            <div class="sub">${c.unallocated_sp ? `另有未分配 ${fmtNum(c.unallocated_sp)} SP` : "无未分配技能点"}</div>
+            <div class="sub">已训练 ${fmtNum(c.total_sp)} · 未分配 ${fmtNum(c.unallocated_sp)}</div>
             ${c.wallet_isk != null ? `<div class="sub wallet-sub">💳 钱包余额 ${fmtIsk(c.wallet_isk)} ISK</div>` : ""}
             ${extractDetail(c)}
             ${speedTxt}`;
@@ -326,6 +361,71 @@ function toggleHideNames(checked) {
   try { localStorage.setItem("hideNames", hideNames ? "1" : "0"); } catch (e) { /* ignore */ }
   if (charsCache.length) render(charsCache); else load();
 }
+function isActiveTraining(c) {
+  const q0 = (c.queue || [])[0];
+  return !!(q0 && q0.training_start_date && q0.finish_date);
+}
+function projectedTotal(c) {
+  if (c.total_sp == null) return null;
+  const q0 = (c.queue || [])[0];
+  if (!q0 || q0.start_sp == null || q0.end_sp == null || q0.current_sp == null ||
+      !q0.training_start_date || !q0.finish_date) return null;
+  const st = new Date(q0.training_start_date).getTime();
+  const fn = new Date(q0.finish_date).getTime();
+  if (!Number.isFinite(st) || !Number.isFinite(fn) || fn <= st) return null;
+  let frac = (Date.now() - st) / (fn - st);
+  if (frac < 0) return null;
+  frac = Math.min(1, frac);
+  const projSkill = q0.start_sp + (q0.end_sp - q0.start_sp) * frac;
+  const gained = Math.max(0, projSkill - q0.current_sp);
+  return c.total_sp + gained;
+}
+
+function combinedTotal(c) {
+  if (c.total_sp == null) return null;
+  return c.total_sp + (c.unallocated_sp || 0);
+}
+
+function projectedCombined(c) {
+  const p = projectedTotal(c);
+  if (p == null) return null;
+  return p + (c.unallocated_sp || 0);
+}
+
+function totalSpDisplay(c) {
+  const pc = projectedCombined(c);
+  if (pc != null) return `≈ ${fmtNum(pc)}`;
+  const ct = combinedTotal(c);
+  return ct != null ? fmtNum(ct) : fmtNum(c.total_sp);
+}
+
+function totalSpTip(c) {
+  const ct = combinedTotal(c);
+  const free = c.unallocated_sp || 0;
+  const trained = c.total_sp != null ? c.total_sp : 0;
+  if (ct == null) return "总技能点（暂无数据）";
+  const pc = projectedCombined(c);
+  if (pc != null) {
+    return `总技能点(含未分配)：CCP 结算 ${fmtNum(ct)} SP（已训练 ${fmtNum(trained)} + 未分配 ${fmtNum(free)}）；实时推算约 ${fmtNum(pc)} SP`;
+  }
+  return `总技能点(含未分配) = 已训练 ${fmtNum(trained)} + 未分配 ${fmtNum(free)} = ${fmtNum(ct)} SP`;
+}
+
+function projectTick() {
+  if (refreshingAll) return;
+  const modal = $("#modal");
+  if (modal && !modal.classList.contains("hidden")) {
+    const ae = document.activeElement;
+    if (ae && ae.id === "acct-input") return; // 正在编辑账号名时不打扰
+    const body = $("#modal-body");
+    const id = Number(body.dataset.openId);
+    const c = charsCache.find((x) => x.character_id === id);
+    if (c) renderDetail(c); // 弹窗打开:刷新当前角色的实时进度
+    return;
+  }
+  if (document.hidden || !charsCache.length) return;
+  render(charsCache); // 弹窗关闭:整体刷新(实时推算/进度跳动)
+}
 function maskedAccount(real) {
   const n = Math.max(2, Math.min(String(real).length, 6));
   return "●".repeat(n);
@@ -369,15 +469,17 @@ function listRow(c) {
   let trainHtml;
   if (c.needs_reauth) {
     trainHtml = `<span class="reauth-tag">需重新授权</span>`;
-  } else {
+  } else if (isActiveTraining(c)) {
     const q0 = (c.queue || [])[0];
-    trainHtml = q0
-      ? `${escapeHtml(q0.name)} → Lv${q0.target_level != null ? q0.target_level : "?"}`
-      : `<span class="muted">未训练</span>`;
+    trainHtml = `${escapeHtml(q0.name)} → Lv${q0.target_level != null ? q0.target_level : "?"}`;
+  } else if ((c.queue || []).length) {
+    trainHtml = `<span class="muted">⏸ 队列暂停</span>`;
+  } else {
+    trainHtml = `<span class="muted">未训练</span>`;
   }
   return `<tr class="c-row" data-id="${c.character_id}" title="点击查看详情">
     <td class="c-name"><img class="mini-avatar" src="${escapeHtml(c.portrait_url)}" alt="" loading="lazy"><span>${nameMaskSpan(c.character_name)}</span></td>
-    <td class="num">${fmtNum(c.total_sp)}</td>
+    <td class="num" title="${totalSpTip(c)}">${totalSpDisplay(c)}</td>
     <td class="num muted">${fmtNum(c.unallocated_sp)}</td>
     <td class="num">${fmtIsk(c.wallet_isk)}</td>
     <td class="num">${extHtml}</td>
@@ -387,9 +489,9 @@ function listRow(c) {
 
 function renderListView(chars) {
   const sections = groupSections(chars);
-  const thead = `<thead><tr><th>角色</th><th>已训练 SP</th><th>未分配</th><th>钱包</th><th>可提提取器</th><th>训练中</th></tr></thead>`;
+  const thead = `<thead><tr><th>角色</th><th>总SP(含未分配)</th><th>未分配</th><th>钱包</th><th>可提提取器</th><th>训练中</th></tr></thead>`;
   const bodyHtml = sections.map((s) => {
-    const totalSp = s.chars.reduce((a, c) => a + (c.total_sp || 0), 0);
+    const totalSp = s.chars.reduce((a, c) => a + (c.total_sp || 0) + (c.unallocated_sp || 0), 0);
     const totalIsk = s.chars.reduce((a, c) => a + (c.wallet_isk || 0), 0);
     const totalExt = s.chars.reduce((a, c) => a + (c.extractor_count || 0), 0);
     const accNameTag = s.key
@@ -411,6 +513,12 @@ function render(chars) {
   $("#list-view").classList.toggle("hidden", !listMode);
   if (listMode) renderListView(chars); else renderCards(chars);
 
+  refreshTotals();
+  updateOpenModal();
+}
+
+function refreshTotals() {
+  const chars = charsCache;
   const total = chars.reduce((s, c) => s + (c.extractor_count || 0), 0);
   const sumEl = $("#summary");
   if (total > 0) {
@@ -432,7 +540,6 @@ function render(chars) {
   } else {
     sumIskEl.classList.add("hidden");
   }
-  updateOpenModal();
 }
 function updateOpenModal() {
   const modal = $("#modal");
@@ -444,25 +551,90 @@ function updateOpenModal() {
   if (c) renderDetail(c);
 }
 
+function sleepMs(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function refreshOne(id) {
+  try {
+    const res = await fetch(`/api/characters/${id}/refresh`, { method: "POST" });
+    if (!res.ok) return null;
+    const ch = await res.json();
+    const idx = charsCache.findIndex((x) => x.character_id === id);
+    if (idx >= 0) charsCache[idx] = ch; else charsCache.push(ch);
+    return ch;
+  } catch (e) {
+    return null;
+  }
+}
+
+function updateCharDom(c) {
+  const id = c.character_id;
+  const tile = document.querySelector(`.tile[data-id="${id}"]`);
+  if (tile) {
+    tile.outerHTML = tileHtml(c);
+    const nt = document.querySelector(`.tile[data-id="${id}"]`);
+    if (nt) bindMaskables(nt);
+  }
+  const row = document.querySelector(`#list-view .c-row[data-id="${id}"]`);
+  if (row) {
+    row.outerHTML = listRow(c);
+    const nr = document.querySelector(`#list-view .c-row[data-id="${id}"]`);
+    if (nr) bindMaskables(nr);
+  }
+  refreshTotals();
+  const modal = $("#modal");
+  const body = $("#modal-body");
+  if (modal && !modal.classList.contains("hidden") && Number(body.dataset.openId) === id) {
+    const ae = document.activeElement;
+    if (!(ae && ae.id === "acct-input")) renderDetail(c);
+  }
+}
+
+let rotBusy = false;
+const ROTATE_GAP_MS = 60 * 1000;
+
+async function rotatePass() {
+  if (rotBusy || document.hidden) return;
+  const targets = charsCache.filter((c) => !c.needs_reauth).map((c) => c.character_id);
+  if (!targets.length) return;
+  rotBusy = true;
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      if (document.hidden) break;
+      const ch = await refreshOne(targets[i]);
+      if (ch) updateCharDom(ch);
+      if ((i + 1) % 5 === 0 || i + 1 === targets.length) {
+        const st = $("#status");
+        st.textContent = `轮询刷新中 ${i + 1}/${targets.length}`;
+        st.classList.remove("hidden");
+        setTimeout(() => st.classList.add("hidden"), 2500);
+      }
+      await sleepMs(300);
+    }
+  } finally {
+    rotBusy = false;
+  }
+  if (!document.hidden) setTimeout(rotatePass, ROTATE_GAP_MS);
+}
 async function onRefreshAll() {
   if (refreshingAll) return;
   const btn = $("#btn-refresh-all");
+  const targets = charsCache.filter((c) => !c.needs_reauth).map((c) => c.character_id);
+  if (!targets.length) { showBanner("没有可刷新的角色", true); return; }
   refreshingAll = true;
   btn.disabled = true;
   btn.textContent = "刷新中…";
-  showStatus("正在刷新全部角色…");
+  showStatus(`正在逐个刷新 0/${targets.length} …`);
   try {
-    const res = await fetch("/api/characters/refresh-all", { method: "POST" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const chars = await res.json();
-    render(chars);
-    const reauth = chars.filter((c) => c.needs_reauth).length;
-    if (reauth) {
-      showBanner(`${reauth} 个角色需要重新授权（点进详情可重新授权）`, true);
-    } else {
-      showBanner("");
+    let done = 0;
+    for (const id of targets) {
+      const ch = await refreshOne(id);
+      if (ch) updateCharDom(ch);
+      done++;
+      showStatus(`正在逐个刷新 ${done}/${targets.length} …`);
+      await sleepMs(200);
     }
-    showStatus(`已刷新全部 ${chars.length} 个角色`);
+    showBanner("已刷新全部角色", false);
+    showStatus(`已刷新 ${targets.length} 个角色`);
     setTimeout(() => showStatus(""), 3000);
   } catch (e) {
     showBanner("刷新全部失败：" + e.message, true);
@@ -472,7 +644,6 @@ async function onRefreshAll() {
     btn.textContent = "⟳ 刷新全部";
   }
 }
-
 async function autoRefresh() {
   if (refreshingAll || document.hidden) return;
   try {
@@ -864,9 +1035,21 @@ function bindGlobal() {
   }
   load();
   loadMarket(); // 市场行情：首次打开立即刷新一次
-  setInterval(autoRefresh, AUTO_REFRESH_MS); // 角色：每 5 分钟
+  setTimeout(() => rotatePass(), 1200); // 先显示旧数据，随后逐个轮流刷新
+  setInterval(() => rotatePass(), AUTO_REFRESH_MS); // 兜底：每 5 分钟跑一轮
   setInterval(loadMarket, MARKET_REFRESH_MS); // 市场行情：每 15 分钟
+  setInterval(projectTick, 60 * 1000); // 实时推算：每 60 秒推进
 })();
+
+
+
+
+
+
+
+
+
+
 
 
 

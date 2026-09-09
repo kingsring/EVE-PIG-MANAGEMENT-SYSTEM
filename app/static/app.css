@@ -180,6 +180,7 @@ h1 {
   text-overflow: ellipsis;
 }
 .tile .train-hint b { color: var(--blue); font-weight: 600; }
+.tile .train-hint.paused { color: #d29922; border-color: rgba(242, 169, 0, 0.45); background: rgba(242, 169, 0, 0.06); }
 
 .tile .warn-badge {
   position: absolute;
@@ -674,3 +675,4 @@ h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
   padding: 4px 2px;
 }
 .view-switch .opt input { cursor: pointer; accent-color: var(--accent); }
+
