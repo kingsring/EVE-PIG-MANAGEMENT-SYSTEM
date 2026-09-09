@@ -10,8 +10,7 @@
 
 1. 用 EVE 账号登录 https://developers.eveonline.com ，进入 Applications → Create New Application。
 2. Connection Type 选择 **Authentication & API Access**；Permissions 勾选：
-   - `esi-skills.read_skills.v1`（读取技能点）
-   - `esi-skills.read_skillqueue.v1`（读取技能队列）
+   - 全选
 3. Callback URL 填：`http://localhost:8000/callback`
 4. 创建后记下 **Client ID** 和 **Secret Key**。
    - 注意：若之后修改权限范围，所有已绑定角色都需要重新授权。
