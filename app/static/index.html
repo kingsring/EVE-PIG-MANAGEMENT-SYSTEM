@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EVE 工具箱</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <h1>EVE 工具箱</h1>
+      <nav class="nav">
+        <a class="nav-item active" data-page="skills" href="#skills">技能点查看器</a>
+        <a class="nav-item" data-page="market" href="#market">市场行情</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- 市场行情页 -->
+    <div id="page-market" class="page hidden">
+      <div class="page-head">
+        <h2>市场行情</h2>
+      </div>
+      <div id="market-page" class="market hidden"></div>
+      <p class="page-note">顶部为常驻跟踪道具（吉他海四）；下方可按物品名查询各贸易中心价格。</p>
+
+      <div class="search-block">
+        <h2 class="block-title">物品价格查询</h2>
+        <div class="search-row">
+          <input id="item-q" type="text"
+                 placeholder="输入名称即可模糊搜索（支持中文/英文，如：灾难、abadd、导弹、技能提取）">
+          <button id="btn-search-item" class="btn primary">搜索</button>
+        </div>
+        <div id="item-hint" class="status hidden"></div>
+        <div id="item-results" class="item-results hidden"></div>
+        <div id="item-detail" class="item-detail hidden"></div>
+      </div>
+
+      <div class="cat-browse">
+        <h2 class="block-title">按分类浏览</h2>
+        <div class="search-row">
+          <select id="cat-select" class="cat-select"></select>
+          <input id="cat-q" type="text" placeholder="在该分类内过滤名称（可留空）">
+          <button id="btn-cat-load" class="btn">查看</button>
+        </div>
+        <div id="cat-status" class="status hidden"></div>
+        <div id="cat-items" class="item-results hidden"></div>
+        <button id="cat-more" class="btn hidden">显示更多</button>
+        <div id="cat-detail" class="item-detail hidden"></div>
+      </div>
+    </div>
+
+    <!-- 技能点查看器页 -->
+    <div id="page-skills" class="page">
+      <div class="page-head">
+        <h2>技能点查看器</h2>
+        <div class="top-actions">
+          <button class="btn" id="btn-refresh-all" title="立即刷新所有角色">⟳ 刷新全部</button>
+          <button class="btn danger" id="btn-delete-all" title="删除全部角色及其本地令牌与缓存(不可恢复)">🗑 删除全部角色</button>
+          <a class="btn primary" id="btn-add" href="/login">＋ 添加角色</a>
+        </div>
+      </div>
+
+      <div class="view-switch">
+        <button id="btn-view-list" class="active" type="button">☰ 紧凑列表</button>
+        <button id="btn-view-cards" type="button">▦ 卡片视图</button>
+        <label class="opt" title="开启后角色名打码显示，鼠标悬停查看真实名称">
+          <input type="checkbox" id="opt-hide-names"> 隐藏角色名
+        </label>
+      </div>
+
+      <div id="market" class="market hidden"></div>
+
+      <div id="banner" class="banner hidden"></div>
+      <div id="status" class="status hidden"></div>
+      <div id="summary" class="summary hidden"></div>
+      <div id="summary-isk" class="summary isk hidden"></div>
+
+      <div id="empty" class="empty hidden">
+        <p>还没有绑定任何角色。</p>
+        <p>点击右上角「添加角色」，会跳转到 EVE 官方登录页面，选择你要绑定的游戏角色并授权即可。
+           同一个账号下的多个角色，需要分别登录一次。</p>
+      </div>
+
+      <div id="cards" class="hidden"></div>
+      <div id="list-view" class="list-view hidden"></div>
+    </div>
+  </main>
+
+  <footer class="foot">
+    数据来自 CCP EVE ESI（tranquility）· 请使用 http://localhost:8000 访问
+  </footer>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="角色详情">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel">
+      <button class="modal-close" aria-label="关闭">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
