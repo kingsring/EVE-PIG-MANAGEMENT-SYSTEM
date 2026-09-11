@@ -116,6 +116,24 @@ class EsiClient:
             return resp.json()
         self._raise_esi_error(resp, "读取技能点")
 
+    def get_character_attributes(self, character_id: int, access_token: str) -> dict:
+        """读取角色当前有效属性（含脑插等修正，若 ESI 返回）。"""
+        resp = self._esi_request(
+            "GET", f"/latest/characters/{character_id}/attributes/", access_token=access_token
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        self._raise_esi_error(resp, "读取角色属性")
+
+    def get_character_implants(self, character_id: int, access_token: str) -> list:
+        """读取角色当前脑插 type_id 列表。"""
+        resp = self._esi_request(
+            "GET", f"/latest/characters/{character_id}/implants/", access_token=access_token
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        self._raise_esi_error(resp, "读取角色脑插")
+
     def get_character_wallet(self, character_id: int, access_token: str) -> float:
         """读取角色个人钱包 ISK 余额。"""
         resp = self._esi_request(
@@ -184,6 +202,22 @@ class EsiClient:
             except httpx.HTTPError:
                 continue
         return result
+    def fetch_universe_groups_zh(self, ids) -> dict:
+        """逐个请求 /universe/groups/{id}/?language=zh 取官方中文组名（尽力而为）。"""
+        result = {}
+        for i in sorted({int(x) for x in ids}):
+            try:
+                resp = self._http.get(
+                    f"{config.ESI_BASE}/latest/universe/groups/{i}/",
+                    params={"datasource": config.DATASOURCE, "language": "zh"},
+                )
+                if resp.status_code == 200:
+                    name = resp.json().get("name")
+                    if name:
+                        result[i] = name
+            except httpx.HTTPError:
+                continue
+        return result
     def resolve_universe_ids(self, names, language: str = "zh") -> list:
         """按精确名称解析 type id（/universe/ids/）。返回 [{"id":..,"name":..}, ...]。"""
         resp = self._http.post(
@@ -213,6 +247,25 @@ class EsiClient:
             except httpx.HTTPError:
                 continue  # 单次失败不阻断，缺失项走英文兜底
         return result
+    def fetch_skill_details_zh(self, ids) -> dict:
+        """请求 /universe/types/{id}/?language=zh 获取技能中文名与描述。"""
+        result = {}
+        for i in sorted({int(x) for x in ids}):
+            try:
+                resp = self._http.get(
+                    f"{config.ESI_BASE}/latest/universe/types/{i}/",
+                    params={"datasource": config.DATASOURCE, "language": "zh"},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    result[i] = {
+                        "name": data.get("name") or "",
+                        "description": data.get("description") or "",
+                    }
+            except httpx.HTTPError:
+                continue
+        return result
+
     def resolve_names(self, ids) -> dict:
         """通过 /universe/names/ 批量解析 id -> 名称（进程内缓存，尽力而为）。"""
         unique = sorted({int(i) for i in ids if i is not None})
@@ -273,6 +326,7 @@ def enrich_queue(queue_entries, skills, names: dict) -> list:
         )
     out.sort(key=lambda x: x["position"])
     return out
+
 
 
 

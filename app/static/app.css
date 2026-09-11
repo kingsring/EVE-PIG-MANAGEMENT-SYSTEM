@@ -572,6 +572,43 @@ h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
   transition: border-color 0.15s;
 }
 .res-item:hover { border-color: var(--accent); }
+.res-item.fit-pick.upgrade-skill {
+  border-color: #3fb950;
+  background: rgba(63, 185, 80, 0.14);
+  color: #8ce99a;
+}
+.res-item.fit-pick.upgrade-skill:hover { border-color: #56d364; }
+
+.res-item.fit-pick.uncertain-skill {
+  border-color: #d29922;
+  background: rgba(210, 153, 34, 0.15);
+  color: #f2cc60;
+}
+.res-item.fit-pick.uncertain-skill:hover { border-color: #e3b341; }
+.uncertain-tag {
+  color: #f2cc60;
+  font-size: 11px;
+  border-left: 1px solid rgba(210, 153, 34, 0.6);
+  padding-left: 6px;
+  white-space: nowrap;
+}
+
+.res-item.fit-pick.max-level {
+  cursor: not-allowed;
+  opacity: 0.55;
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.max-level-tag {
+  color: var(--muted);
+  font-size: 11px;
+  border-left: 1px solid var(--line);
+  padding-left: 6px;
+  white-space: nowrap;
+}
+
+
 .res-name { font-weight: 600; }
 .res-id { color: var(--muted); font-size: 11.5px; }
 
@@ -675,4 +712,311 @@ h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
   padding: 4px 2px;
 }
 .view-switch .opt input { cursor: pointer; accent-color: var(--accent); }
+
+
+/* ---------- 历史走势图 ---------- */
+.chart-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.chart-card .block-title { margin: 0 0 10px; }
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chart-head .opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.chart-head .opt input { cursor: pointer; accent-color: var(--accent); }
+#history-note { margin-top: 8px; }
+
+/* ---------- 农场财务 ---------- */
+.fin-cards { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.fin-card {
+  flex: 1 1 180px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.fin-label { color: var(--muted); font-size: 12.5px; margin-bottom: 6px; font-weight: 700; }
+.fin-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+.fin-row b { font-variant-numeric: tabular-nums; }
+.fin-row .pos, .num.pos, td.pos { color: #7ee787; }
+.fin-row .neg, .num.neg, td.neg { color: #ff9b9b; }
+
+.fin-forms { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.fin-form-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.fin-form-card .block-title { margin: 0 0 10px; }
+.fin-fields { display: flex; flex-direction: column; gap: 8px; }
+.fin-fields input, .fin-fields select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13.5px;
+}
+.fin-fields input:focus, .fin-fields select:focus { outline: none; border-color: var(--blue); }
+.fin-fields .btn { align-self: flex-start; }
+.fin-edit { margin-top: 8px; color: var(--accent-2); font-size: 12.5px; display: flex; gap: 10px; align-items: center; }
+
+.fin-section { margin-top: 16px; }
+.fin-table-wrap { overflow-x: auto; }
+.fin-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.fin-table th, .fin-table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+.fin-table th { color: var(--muted); background: var(--panel-2); font-weight: 600; }
+.fin-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fin-table td.note { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.fin-table tr:last-child td { border-bottom: none; }
+.fin-table .ops { display: flex; gap: 6px; }
+
+/* ---------- 走势图提取事件 ---------- */
+.history-events { margin-top: 8px; }
+.history-events .he-title { color: var(--muted); font-size: 12.5px; font-weight: 700; margin-bottom: 4px; }
+.history-events .he-row { font-size: 12.5px; color: #ffb3b0; padding: 2px 0; }
+
+
+/* ---------- 配装规划 ---------- */
+.fit-layout { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 980px) { .fit-layout { grid-template-columns: 1fr; } }
+.fit-save-card { grid-column: 1 / -1; }
+.fit-char-card { grid-column: 1 / -1; }
+.fit-char-buttons { display: flex; flex-wrap: wrap; gap: 7px; max-height: 118px; overflow-y: auto; padding-right: 3px; }
+.fit-char-btn { padding: 6px 11px; font-size: 13px; }
+.fit-char-btn.active { border-color: var(--accent); color: var(--accent-2); background: rgba(242, 169, 0, 0.14); box-shadow: 0 0 0 1px rgba(242, 169, 0, 0.35); }
+.fit-char-btn.all { font-weight: 700; }
+.fit-policy-select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 13px; }
+.fit-policy-select:focus { outline: none; border-color: var(--blue); }
+.fit-saved-list { display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 10px; margin-top: 9px; }
+.fit-saved-group { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 76px; }
+.fit-saved-group.applied { border-color: #3fb950; background: rgba(63, 185, 80, 0.07); }
+.fit-saved-group.partial { border-color: #58a6ff; background: rgba(88, 166, 255, 0.07); }
+.fit-saved-group.out_of_order { border-color: #d29922; background: rgba(210, 153, 34, 0.08); }
+.fit-saved-group.pending { border-color: #f85149; background: rgba(248, 81, 73, 0.06); }
+.fit-saved-group-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; font-size: 12px; font-weight: 700; }
+.fit-saved-group.applied .fit-saved-group-head { color: #7ee787; }
+.fit-saved-group.partial .fit-saved-group-head { color: #79c0ff; }
+.fit-saved-group.out_of_order .fit-saved-group-head { color: #e3b341; }
+.fit-saved-group.pending .fit-saved-group-head { color: #ff9b9b; }
+.fit-saved-group-head span { border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; font-size: 10.5px; }
+.fit-saved-group-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.fit-saved-btn { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; line-height: 1.2; }
+.fit-saved-btn small { font-size: 10.5px; opacity: 0.9; }
+.fit-saved-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fit-saved-group.applied .fit-saved-btn { border-color: #3fb950; color: #9be9a8; background: rgba(63, 185, 80, 0.10); }
+.fit-saved-group.partial .fit-saved-btn { border-color: #58a6ff; color: #a5d6ff; background: rgba(88, 166, 255, 0.10); }
+.fit-saved-group.out_of_order .fit-saved-btn { border-color: #d29922; color: #e3b341; background: rgba(210, 153, 34, 0.10); }
+.fit-saved-group.pending .fit-saved-btn { border-color: #f85149; color: #ffb3b0; background: rgba(248, 81, 73, 0.10); }
+.fit-saved-group .fit-saved-btn.active { border-color: var(--accent); color: var(--accent-2); background: rgba(242, 169, 0, 0.14); box-shadow: 0 0 0 1px rgba(242, 169, 0, 0.35); }
+@media (max-width: 720px) { .fit-saved-list { grid-template-columns: 1fr; } }
+
+.fit-left { display: flex; flex-direction: column; gap: 12px; }
+#fit-eft {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12.5px;
+  resize: vertical;
+}
+.qty-input { width: 80px; }
+.fit-items-details { margin-top: 8px; }
+.optimizer-completed { margin-top: 10px; }
+.optimizer-completed summary { color: #7ee787; font-weight: 700; }
+.fit-items-details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; user-select: none; }
+.fit-items-details summary:hover { color: var(--text); }
+.fit-items-details[open] summary { color: var(--text); margin-bottom: 6px; }
+.fit-items-details #fit-items-count { color: var(--accent-2); }
+.fit-items { display: flex; flex-direction: column; gap: 6px; }
+.fit-item-row { display: flex; align-items: center; gap: 8px; }
+.fit-item-slot {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1px 6px; font-size: 11px; color: var(--muted); min-width: 42px; text-align: center;
+}
+.fit-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.optimizer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin: 8px 0;
+  font-size: 12.5px;
+}
+.optimizer-summary span { margin-left: auto; display: flex; gap: 6px; }
+.plan-applied-badge { color: #7ee787; border: 1px solid #3fb950; border-radius: 999px; padding: 3px 9px; font-size: 11.5px; background: rgba(63, 185, 80, 0.12); }
+.optimizer-phase { margin-top: 10px; }
+.optimizer-phase-head { color: var(--accent-2); font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.queue-badge { color: #7ee787; font-size: 10.5px; border: 1px solid #3fb950; border-radius: 999px; padding: 1px 5px; margin-left: 5px; white-space: nowrap; }
+.queue-badge.bad { color: #ff9b9b; border-color: #f85149; background: rgba(248, 81, 73, 0.12); }
+.queue-warning { color: #f2cc60; font-size: 10.5px; border: 1px solid #d29922; border-radius: 999px; padding: 1px 5px; margin-left: 5px; white-space: nowrap; }
+
+
+
+.fit-extra-skills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.fit-extra-skill { display: inline-flex; align-items: center; gap: 5px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; font-size: 12px; }
+.fit-extra-skill button { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0; font-size: 14px; }
+.fit-extra-skill button:hover { color: #ff9b9b; }
+
+.fit-limits { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.fit-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.fit-bar-label { width: 86px; color: var(--muted); }
+.fit-bar-track { flex: 1; height: 8px; background: #0b0f14; border-radius: 4px; overflow: hidden; }
+.fit-bar-fill { height: 100%; background: #3fb950; }
+.fit-bar-fill.bad { background: #f85149; }
+.fit-bar-num { width: 130px; text-align: right; font-variant-numeric: tabular-nums; }
+.fit-bar-num.bad, .num.bad { color: #ff9b9b; }
+
+/* ---------- 可视化槽位面板 ---------- */
+.fit-visual {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  margin-bottom: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.fi-ship, .fit-ship { text-align: center; }
+.fit-ship img { width: 150px; height: 150px; object-fit: contain; }
+.fit-ship-name { color: var(--accent-2); font-weight: 700; font-size: 13px; }
+.fit-slot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.slot-col-title { color: var(--muted); font-size: 11.5px; margin-bottom: 4px; }
+.slot-cells { display: flex; flex-wrap: wrap; gap: 6px; }
+.fit-slot {
+  width: 46px; height: 46px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--muted); cursor: pointer; position: relative;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.fit-slot.empty { border-style: dashed; font-size: 20px; }
+.fit-slot.empty:hover, .fit-slot.filled:hover { border-color: var(--accent); }
+.fit-slot.filled { border-color: rgba(242, 169, 0, 0.55); }
+.fit-slot img { width: 40px; height: 40px; }
+.fit-slot .fit-charge-ico {
+  position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px;
+  border: 1px solid var(--line); border-radius: 4px; background: #000;
+}
+.fit-slot .fit-qty {
+  position: absolute; left: -4px; top: -6px; font-size: 10px; color: var(--accent-2);
+  background: #000; border: 1px solid var(--line); border-radius: 8px; padding: 0 4px;
+}
+.fit-drone-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.fit-picker {
+  border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px;
+  margin-bottom: 10px; background: var(--panel-2);
+}
+.fit-picker.floating {
+  position: fixed;
+  top: 96px;
+  right: 28px;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 128px);
+  overflow-y: auto;
+  margin: 0;
+  z-index: 1200;
+  background: var(--panel);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+@media (max-width: 640px) {
+  .fit-picker.floating { top: 72px; left: 16px; right: 16px; width: auto; }
+}
+.skill-effect-card {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin-bottom: 10px;
+}
+.skill-effect-title { color: var(--accent-2); font-size: 12.5px; font-weight: 700; margin-bottom: 5px; }
+.skill-effect-text { color: var(--text); font-size: 13px; line-height: 1.55; white-space: normal; }
+.skill-info-meta { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.45; }
+.fit-picker-head { display: flex; justify-content: space-between; align-items: center; color: var(--accent-2); font-weight: 700; margin-bottom: 8px; }
+.pick-ico { width: 24px; height: 24px; }
+.fit-pick { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- 空白配装面板 ---------- */
+.fit-ship-empty { grid-column: 1 / -1; text-align: center; padding: 18px 10px; }
+.fit-ship-slot {
+  width: 150px; height: 150px; border-radius: 14px; cursor: pointer;
+  border: 2px dashed rgba(242, 169, 0, 0.6); background: var(--panel);
+  color: var(--accent-2); font-size: 14px; font-weight: 700;
+}
+.fit-ship-slot:hover { border-color: var(--accent-2); background: rgba(242, 169, 0, 0.06); }
+
+/* ---------- 技能缺失合计 ---------- */
+.fit-total-row th { background: rgba(242, 169, 0, 0.08); color: var(--accent-2); font-weight: 700; }
+.fit-total-row th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- 技能目标模式切换 ---------- */
+.fit-mode-switch { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.fit-mode-switch button {
+  padding: 5px 12px; border-radius: 16px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--muted); font-size: 12.5px; cursor: pointer;
+}
+.fit-mode-switch button.active {
+  color: #241a00; background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  border-color: transparent; font-weight: 700;
+}
+
+/* ---------- 多配装分页 ---------- */
+.fit-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.fit-tab {
+  position: relative; padding: 5px 22px 5px 12px; border-radius: 8px 8px 0 0;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  font-size: 12.5px; cursor: pointer;
+}
+.fit-tab.active { color: var(--accent-2); border-color: rgba(242, 169, 0, 0.6); background: rgba(242, 169, 0, 0.08); font-weight: 700; }
+.fit-tab.add { padding: 5px 10px; border-radius: 8px; }
+.fit-tab-close { position: absolute; right: 6px; top: 3px; opacity: 0.7; }
+.fit-tab-close:hover { color: #ff9b9b; }
+.fit-ship-slot.ship-chosen { border: none; background: transparent; width: auto; height: auto; padding: 0; }
+.fit-ship-slot.ship-chosen:hover { background: transparent; opacity: 0.85; }
+
+/* ---------- 配装导出 ---------- */
+.fit-tab-export { margin-left: 6px; opacity: 0.65; }
+.fit-tab-export:hover { color: var(--accent-2); opacity: 1; }
+.fit-export { border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--panel-2); }
+.fit-export textarea {
+  width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-family: Consolas, "Courier New", monospace; font-size: 12.5px;
+}
+
+/* ---------- 属性统计面板 ---------- */
+.fit-stat { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 2px 0; }
+.fit-stat span { color: var(--muted); }
+.fit-stat b { color: var(--text); font-variant-numeric: tabular-nums; }
+.fit-stat-head { color: var(--accent-2); font-weight: 700; font-size: 12.5px; margin: 8px 0 2px; border-bottom: 1px solid var(--line); }
+
+/* ---------- 装备启用状态 ---------- */
+.fit-slot.filled.active { border-color: #3fb950; box-shadow: 0 0 8px rgba(63, 185, 80, 0.45); background: rgba(63, 185, 80, 0.10); }
+.fit-slot-menu {
+  position: absolute; right: -5px; top: -7px; font-size: 11px; line-height: 1;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1px 4px; color: var(--muted); cursor: pointer;
+}
+.fit-slot-menu:hover { color: var(--accent-2); border-color: var(--accent); }
+
+/* ---------- 被动装备 ---------- */
+.fit-slot.filled.passive { border-color: #58a6ff; background: rgba(88, 166, 255, 0.08); }
+.fit-slot.filled.passive:hover { border-color: var(--blue); }
 

@@ -13,6 +13,8 @@
       <nav class="nav">
         <a class="nav-item active" data-page="skills" href="#skills">技能点查看器</a>
         <a class="nav-item" data-page="market" href="#market">市场行情</a>
+        <a class="nav-item" data-page="finance" href="#finance">农场财务</a>
+        <a class="nav-item" data-page="fitting" href="#fitting">配装规划</a>
       </nav>
     </div>
   </header>
@@ -52,6 +54,137 @@
       </div>
     </div>
 
+    <!-- 农场财务页 -->
+    <div id="page-finance" class="page hidden">
+      <div class="page-head"><h2>农场财务</h2></div>
+      <div id="fin-msg" class="banner hidden"></div>
+      <div id="fin-summary"></div>
+
+      <div class="fin-forms">
+        <div class="fin-form-card">
+          <h3 class="block-title">记一笔收入（卖出注入器）</h3>
+          <div class="fin-fields">
+            <input type="date" id="fin-inc-date" title="日期">
+            <select id="fin-inc-account" title="归属账号"></select>
+            <input type="number" id="fin-inc-qty" min="1" step="1" placeholder="数量(个,可空)">
+            <input type="number" id="fin-inc-amount" min="0" step="0.01" placeholder="金额 ISK *">
+            <input type="text" id="fin-inc-note" placeholder="备注(可空)">
+            <button class="btn primary" id="btn-fin-inc-save">保存收入</button>
+          </div>
+          <div id="fin-inc-edit" class="fin-edit hidden">正在编辑收入记录 <button class="btn small" id="btn-fin-inc-cancel">取消编辑</button></div>
+        </div>
+
+        <div class="fin-form-card">
+          <h3 class="block-title">记一笔支出（欧米伽 / 多角色训练）</h3>
+          <div class="fin-fields">
+            <select id="fin-exp-type" title="支出类型">
+              <option value="omega">欧米伽 Omega</option>
+              <option value="mct">多角色训练 MCT</option>
+              <option value="extractor">技能提取器</option>
+            </select>
+            <input type="date" id="fin-exp-date" title="日期">
+            <select id="fin-exp-account" title="归属账号"></select>
+            <input type="number" id="fin-exp-amount" min="0" step="0.01" placeholder="金额 ISK *">
+            <input type="text" id="fin-exp-note" placeholder="备注(可空)">
+            <button class="btn primary" id="btn-fin-exp-save">保存支出</button>
+          </div>
+          <div id="fin-exp-edit" class="fin-edit hidden">正在编辑支出记录 <button class="btn small" id="btn-fin-exp-cancel">取消编辑</button></div>
+        </div>
+      </div>
+
+      <div class="fin-filters">
+        <h3 class="block-title">筛选与查看</h3>
+        <div class="search-row">
+          <input type="month" id="fin-month" title="月份(留空=全部)">
+          <select id="fin-filter-account" title="账号筛选"></select>
+          <button class="btn" id="btn-fin-refresh">查询</button>
+        </div>
+      </div>
+
+      <div class="fin-section">
+        <h3 class="block-title">分账号汇总</h3>
+        <div id="fin-accounts" class="fin-table-wrap"></div>
+      </div>
+
+      <div class="fin-section">
+        <h3 class="block-title">收支明细</h3>
+        <div id="fin-entries" class="fin-table-wrap"></div>
+      </div>
+    </div>
+
+    <!-- 配装规划页 -->
+    <div id="page-fitting" class="page hidden">
+      <div class="page-head"><h2>配装规划</h2></div>
+      <div class="fit-layout">
+        <div class="fin-form-card fit-char-card">
+          <h3 class="block-title">按角色查看方案</h3>
+          <div id="fit-char-buttons" class="fit-char-buttons"></div>
+          <select id="fit-char" class="hidden"></select>
+        </div>
+
+        <div class="fin-form-card fit-save-card">
+          <h3 class="block-title">保存 / 读取配装</h3>
+          <div class="search-row">
+            <input id="fit-name" placeholder="配装名称">
+            <button class="btn primary" id="btn-fit-save">保存配装</button>
+            <button class="btn danger" id="btn-fit-delete">删除当前配装</button>
+          </div>
+          <div id="fit-saved-list" class="fit-saved-list"></div>
+        </div>
+
+        <div class="fit-left">
+          <div class="fin-form-card">
+            <h3 class="block-title">1. 粘贴游戏配装(EFT 文本)</h3>
+            <textarea id="fit-eft" rows="6" placeholder="[舰船, 配装名]&#10;装备名&#10;装备名, 弹药名&#10;无人机名 x5"></textarea>
+            <div class="search-row">
+              <button class="btn" id="btn-fit-import">解析导入</button>
+              <button class="btn danger" id="btn-fit-clear">清空配装</button>
+            </div>
+            <div id="fit-import-msg" class="sub"></div>
+
+            <h3 class="block-title fit-current-title">当前配装与装配校验</h3>
+            <div id="fit-tabs" class="fit-tabs"></div>
+            <div id="fit-export" class="fit-export hidden"></div>
+            <div id="fit-visual" class="fit-visual"></div>
+            <div id="fit-picker" class="fit-picker hidden"></div>
+            <details class="fit-items-details">
+              <summary>装备明细 <span id="fit-items-count">(0)</span></summary>
+              <div id="fit-items" class="sub fit-items">尚未添加装备</div>
+            </details>
+            <div id="fit-limits" class="fit-limits"></div>
+            <div class="fit-stat-head">属性统计(电容 / 锁定 / 机动 / 防御)</div>
+            <div id="fit-stats" class="sub">选择舰船后显示</div>
+          </div>
+        </div>
+
+        <div class="fit-right">
+          <div class="fin-form-card">
+            <h3 class="block-title">上线技能需求</h3>
+            <div class="fit-mode-switch" id="fit-mode-switch">
+              <button type="button" class="active" data-mode="online">上线</button>
+              <button type="button" data-mode="all4">全部技能到 4</button>
+              <button type="button" data-mode="all5">全部技能到 5</button>
+            </div>
+            <div id="fit-analysis-char" class="sub"></div>
+            <div class="search-row">
+              <button class="btn" id="btn-fit-add-skill">＋ 追加技能</button>
+              <button class="btn" id="btn-fit-copy" title="复制为可直接导入 EVE 训练队列的格式">复制可导入技能</button>
+              <select id="fit-reset-policy" class="fit-policy-select" title="优化训练方案时减少属性重置的策略">
+                <option value="24">较少重置：最多慢 24 小时</option>
+                <option value="72">平衡：最多慢 72 小时</option>
+                <option value="168">尽量少重置：最多慢 7 天</option>
+              </select>
+              <button class="btn primary" id="btn-fit-optimize">优化训练方案</button>
+            </div>
+            <div id="fit-extra-skills" class="fit-extra-skills"></div>
+            <div id="fit-skill-optimizer" class="sub"></div>
+            <div id="fit-skills" class="sub">选择舰船并添加装备后,这里显示所需技能。</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
     <!-- 技能点查看器页 -->
     <div id="page-skills" class="page">
       <div class="page-head">
@@ -77,6 +210,18 @@
       <div id="status" class="status hidden"></div>
       <div id="summary" class="summary hidden"></div>
       <div id="summary-isk" class="summary isk hidden"></div>
+
+      <div id="history-block" class="chart-card">
+        <div class="chart-head">
+          <h3 class="block-title">可提取技能器总数 · 按天走势</h3>
+          <label class="opt" title="关闭后只显示总数曲线，不显示提取标记与事件列表">
+            <input type="checkbox" id="opt-show-events" checked> 显示提取事件
+          </label>
+        </div>
+        <div id="history-chart"></div>
+        <div id="history-note" class="sub"></div>
+        <div id="history-events" class="history-events"></div>
+      </div>
 
       <div id="empty" class="empty hidden">
         <p>还没有绑定任何角色。</p>
@@ -104,6 +249,23 @@
   <script src="/static/app.js"></script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
