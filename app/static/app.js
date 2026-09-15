@@ -11,7 +11,18 @@ function fmtNum(n) {
 }
 function fmtIsk(n) {
   if (n == null) return "—";
-  return Number(n).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+  const value = Number(n);
+  if (!Number.isFinite(value)) return "—";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  const formatCompact = (divisor, unit) => {
+    const scaled = abs / divisor;
+    return `${sign}${scaled.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}${unit}`;
+  };
+  if (abs >= 1e12) return formatCompact(1e12, "万亿");
+  if (abs >= 1e8) return formatCompact(1e8, "亿");
+  if (abs >= 1e4) return formatCompact(1e4, "万");
+  return `${sign}${abs.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`;
 }
 function fmtBig(n) {
   if (n == null) return "—";
@@ -44,7 +55,7 @@ function extractLine(c) {
     return `<div class="extract" title="${tip}">可提 <b>0</b> 个（超出 550 万部分仅 ${fmtNum(remain)} SP，不足 50 万）</div>`;
   }
   const totalProfit = marketUnit ? c.extractor_count * marketUnit : null;
-  const profitTxt = totalProfit ? ` · 利润≈${fmtBig(totalProfit)}` : "";
+  const profitTxt = totalProfit ? ` · 利润≈${fmtIsk(totalProfit)}` : "";
   return `<div class="extract" title="${tip}">可提 <b>${c.extractor_count}</b> 个${profitTxt}</div>`;
 }
 
@@ -57,13 +68,22 @@ function extractDetail(c) {
   }
   h = `<div class="sub extract-sub">🧪 可提取 ${c.extractor_count} 个技能提取器（约 ${fmtNum(c.extractable_sp)} SP）</div>`;
   if (marketUnit) {
-    h += `<div class="sub extract-sub">💰 预计利润 ≈ ${fmtIsk(c.extractor_count * marketUnit)} ISK（单利 ≈ ${fmtBig(marketUnit)}）</div>`;
+    h += `<div class="sub extract-sub">💰 预计利润 ≈ ${fmtIsk(c.extractor_count * marketUnit)} ISK（单利 ≈ ${fmtIsk(marketUnit)}）</div>`;
   }
   return h;
 }
 function walletLine(c) {
-  if (c.wallet_isk == null) return "";
-  return `<div class="wallet" title="个人钱包余额">钱包 <b>${fmtIsk(c.wallet_isk)}</b> ISK</div>`;
+  let html = "";
+  if (c.wallet_isk != null) {
+    html += `<div class="wallet" title="个人钱包余额">钱包 <b>${fmtIsk(c.wallet_isk)}</b> ISK</div>`;
+  }
+  if (c.corporation_wallet_isk != null) {
+    const corpName = c.corporation_name || `军团 #${c.corporation_id || "?"}`;
+    html += `<div class="wallet corp" title="${escapeHtml(corpName)}可访问钱包合计">军团钱包 <b>${fmtIsk(c.corporation_wallet_isk)}</b> ISK</div>`;
+  } else if (c.corporation_wallet_error) {
+    html += `<div class="wallet-error" title="${escapeHtml(c.corporation_wallet_error)}">⚠ 军团钱包权限未生效</div>`;
+  }
+  return html;
 }
 function cloneBadge(c) {
   if (c.clone_status === "omega") {
@@ -72,17 +92,22 @@ function cloneBadge(c) {
   if (c.clone_status === "alpha") {
     return '<span class="clone-badge alpha" title="检测到被 Alpha 限制压制的技能（trained > active）">Alpha(确定)</span>';
   }
+  if (c.clone_status === "alpha_inferred") {
+    return '<span class="clone-badge alpha" title="队列实际训练速度约为属性理论速度的一半">Alpha(速度推断)</span>';
+  }
   return "";
 }
 
 function cloneChip(c) {
   if (c.clone_status === "omega") return '<span class="clone-chip omega">Omega(推定)</span>';
   if (c.clone_status === "alpha") return '<span class="clone-chip alpha">Alpha(确定)</span>';
+  if (c.clone_status === "alpha_inferred") return '<span class="clone-chip alpha">Alpha(速度推断)</span>';
   return "";
 }
 function speedLine(c) {
   if (!c.training_speed) return "";
-  return `<div class="speed" title="当前训练速度（根据技能队列推算，含 Alpha 减速/脑插加成）">训练 ${fmtNum(c.training_speed)} SP/小时</div>`;
+  const alphaText = ["alpha", "alpha_inferred"].includes(c.clone_status) ? "，已按 Alpha 减半" : "";
+  return `<div class="speed" title="当前训练速度（主属性 + 副属性/2，使用角色当前有效属性${alphaText}）">训练 ${fmtNum(c.training_speed)} SP/小时${["alpha", "alpha_inferred"].includes(c.clone_status) ? " · Alpha" : ""}</div>`;
 }
 /* ---------- 首页角色磁贴 ---------- */
 function tileHtml(c) {
@@ -194,7 +219,9 @@ function detailHtml(c) {
     body = `<div class="sp-row"><span class="sp-num" title="${totalSpTip(c)}">${totalSpDisplay(c)}</span>
               <span class="sp-label">技能点</span></div>
             <div class="sub">已训练 ${fmtNum(c.total_sp)} · 未分配 ${fmtNum(c.unallocated_sp)}</div>
-            ${c.wallet_isk != null ? `<div class="sub wallet-sub">💳 钱包余额 ${fmtIsk(c.wallet_isk)} ISK</div>` : ""}
+            ${c.wallet_isk != null ? `<div class="sub wallet-sub">💳 个人钱包 ${fmtIsk(c.wallet_isk)} ISK</div>` : ""}
+            ${c.corporation_wallet_isk != null ? `<div class="sub wallet-sub">🏛️ ${escapeHtml(c.corporation_name || "军团钱包")} ${fmtIsk(c.corporation_wallet_isk)} ISK</div>` : ""}
+            ${c.corporation_wallet_error ? `<div class="banner error">${escapeHtml(c.corporation_wallet_error)} 请使用该角色重新登录授权。 <a class="btn small" href="/login">重新授权</a></div>` : ""}
             ${extractDetail(c)}
             ${speedTxt}`;
   }
@@ -476,7 +503,7 @@ function listRow(c) {
     extHtml = `<span class="muted">0</span>`;
   } else {
     extHtml = `${c.extractor_count} 个`;
-    if (marketUnit) extHtml += `<span class="sub">≈${fmtBig(c.extractor_count * marketUnit)}</span>`;
+    if (marketUnit) extHtml += `<span class="sub">≈${fmtIsk(c.extractor_count * marketUnit)}</span>`;
   }
   let trainHtml;
   if (c.needs_reauth) {
@@ -489,11 +516,13 @@ function listRow(c) {
   } else {
     trainHtml = `<span class="muted">未训练</span>`;
   }
+  const corpWallet = c.corporation_wallet_isk != null
+    ? `<div class="sub wallet-sub">军团 ${fmtIsk(c.corporation_wallet_isk)}</div>` : "";
   return `<tr class="c-row" data-id="${c.character_id}" title="点击查看详情">
     <td class="c-name"><img class="mini-avatar" src="${escapeHtml(c.portrait_url)}" alt="" loading="lazy"><span>${nameMaskSpan(c.character_name)}</span></td>
     <td class="num" title="${totalSpTip(c)}">${totalSpDisplay(c)}</td>
     <td class="num muted">${fmtNum(c.unallocated_sp)}</td>
-    <td class="num">${fmtIsk(c.wallet_isk)}</td>
+    <td class="num">${fmtIsk(c.wallet_isk)}${corpWallet}</td>
     <td class="num">${extHtml}</td>
     <td class="train">${trainHtml}</td>
   </tr>`;
@@ -543,12 +572,21 @@ function refreshTotals() {
   }
 
   const wallets = chars.filter((c) => c.wallet_isk != null);
+  const corporationWallets = new Map();
+  chars.forEach((c) => {
+    if (c.corporation_id && c.corporation_wallet_isk != null) {
+      corporationWallets.set(String(c.corporation_id), Number(c.corporation_wallet_isk));
+    }
+  });
   const sumIskEl = $("#summary-isk");
-  if (wallets.length > 0) {
-    const totalIsk = wallets.reduce((s, c) => s + Number(c.wallet_isk), 0);
+  if (wallets.length > 0 || corporationWallets.size > 0) {
+    const personalTotal = wallets.reduce((s, c) => s + Number(c.wallet_isk), 0);
+    const corporationTotal = [...corporationWallets.values()].reduce((s, value) => s + value, 0);
+    const totalIsk = personalTotal + corporationTotal;
     const missing = chars.length - wallets.length;
-    const note = missing > 0 ? `（${missing} 个角色暂无钱包数据）` : "";
-    sumIskEl.textContent = `💰 全部角色钱包合计 ≈ ${fmtIsk(totalIsk)} ISK${note}`;
+    const missingNote = missing > 0 ? ` · ${missing} 个角色无个人钱包数据` : "";
+    const corpNote = corporationWallets.size > 0 ? ` · ${corporationWallets.size} 个可访问军团已去重` : "";
+    sumIskEl.innerHTML = `💰 总 ISK ≈ <b>${fmtIsk(totalIsk)}</b> <span class="sub">个人 ${fmtIsk(personalTotal)} · 军团 ${fmtIsk(corporationTotal)}${corpNote}${missingNote}</span>`;
     sumIskEl.classList.remove("hidden");
   } else {
     sumIskEl.classList.add("hidden");
@@ -993,35 +1031,88 @@ function renderHistory(rows, events) {
   const vals = rows.map((r) => r.total_extractors);
   const maxV = Math.max(1, ...vals);
   const last = rows[rows.length - 1];
+  const iskVals = rows.map((r) => r.total_isk).filter((v) => v != null).map(Number).filter((v) => Number.isFinite(v));
+  const hasIsk = iskVals.length > 0;
+  const maxIsk = hasIsk ? Math.max(1, ...iskVals) : 1;
+  const latestIskValue = last.total_isk == null ? null : Number(last.total_isk);
+  const latestIskText = Number.isFinite(latestIskValue)
+    ? ` · 最近总 ISK ${fmtIsk(latestIskValue)}` : " · 总 ISK 从有数据日期开始记录";
   note.textContent =
     `已记录 ${rows.length} 天 · 最近(${last.date}) 可提取 ${fmtNum(last.total_extractors)} 个 · 最高 ${fmtNum(Math.max(...vals))} 个` +
+    latestIskText +
     (showExtractEvents ? " · 🔶=提取事件" : "（已隐藏提取事件）");
 
-  const W = 840, H = 210, padL = 52, padR = 14, padT = 14, padB = 26;
-  const iw = W - padL - padR, ih = H - padT - padB;
+  const W = 900;
+  const padL = 58;
+  const padR = 54;
+  const hasIskPanel = hasIsk;
+  const H = hasIskPanel ? 360 : 225;
+  const iw = W - padL - padR;
   const n = rows.length;
   const x = (i) => (n === 1 ? padL + iw / 2 : padL + (i / (n - 1)) * iw);
+
+  const topPanelTop = 34;
+  const topPanelHeight = hasIskPanel ? 118 : 158;
   const yMax = maxV * 1.1;
-  const y = (v) => padT + ih - (v / yMax) * ih;
+  const y = (v) => topPanelTop + topPanelHeight - (v / yMax) * topPanelHeight;
   const pts = rows.map((r, i) => `${x(i).toFixed(1)},${y(r.total_extractors).toFixed(1)}`);
 
-  let grid = "";
+  let topGrid = "";
   [0, 0.5, 1].forEach((f) => {
-    const yy = padT + ih - f * ih;
+    const yy = topPanelTop + topPanelHeight - f * topPanelHeight;
     const val = Math.round(yMax * f);
-    grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#2d333b" stroke-width="1"/>
+    topGrid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#2d333b" stroke-width="1"/>
              <text x="${padL - 8}" y="${yy + 4}" text-anchor="end" fill="#8b949e" font-size="11">${fmtNum(val)}</text>`;
   });
 
+  const bottomPanelTop = 216;
+  const bottomPanelHeight = 100;
+  let bottomGrid = "";
+  if (hasIskPanel) {
+    [0, 0.5, 1].forEach((f) => {
+      const yy = bottomPanelTop + bottomPanelHeight - f * bottomPanelHeight;
+      const val = Math.round(maxIsk * 1.1 * f);
+      bottomGrid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#2d333b" stroke-width="1"/>
+             <text x="${padL - 8}" y="${yy + 4}" text-anchor="end" fill="#58a6ff" font-size="11">${fmtIsk(val)}</text>`;
+    });
+  }
+  const yIsk = (v) => bottomPanelTop + bottomPanelHeight - (v / (maxIsk * 1.1)) * bottomPanelHeight;
+
   const area = n > 1
-    ? `<path d="M${pts[0]} L${pts.slice(1).join(" L")} L${x(n - 1).toFixed(1)},${padT + ih} L${x(0).toFixed(1)},${padT + ih} Z" fill="rgba(242,169,0,0.12)" stroke="none"/>`
+    ? `<path d="M${pts[0]} L${pts.slice(1).join(" L")} L${x(n - 1).toFixed(1)},${topPanelTop + topPanelHeight} L${x(0).toFixed(1)},${topPanelTop + topPanelHeight} Z" fill="rgba(242,169,0,0.12)" stroke="none"/>`
     : "";
   const line = `<polyline points="${pts.join(" ")}" fill="none" stroke="#f2a900" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const iskPoints = rows.map((r, i) => {
+    const value = r.total_isk == null ? null : Number(r.total_isk);
+    return Number.isFinite(value) ? { x: x(i), y: yIsk(value), value, date: r.date } : null;
+  });
+  const iskSegments = [];
+  let currentSegment = [];
+  iskPoints.forEach((point) => {
+    if (!point) {
+      if (currentSegment.length) iskSegments.push(currentSegment);
+      currentSegment = [];
+    } else {
+      currentSegment.push(`${point.x.toFixed(1)},${point.y.toFixed(1)}`);
+    }
+  });
+  if (currentSegment.length) iskSegments.push(currentSegment);
+  const iskLine = iskSegments
+    .filter((segment) => segment.length > 1)
+    .map((segment) => `<polyline points="${segment.join(" ")}" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`)
+    .join("");
   const dots = n <= 45
     ? rows.map((r, i) => {
-        const tip = `${r.date}\n可提取 ${fmtNum(r.total_extractors)} 个\n已训练合计 ${fmtNum(r.trained_sp_total)} SP\n含未分配合计 ${fmtNum(r.combined_sp_total)} SP\n角色数 ${r.char_count}`;
+        const rowIskValue = r.total_isk == null ? null : Number(r.total_isk);
+        const iskLineText = Number.isFinite(rowIskValue) ? `\n总 ISK ${fmtIsk(rowIskValue)}` : "";
+        const tip = `${r.date}\n可提取 ${fmtNum(r.total_extractors)} 个\n已训练合计 ${fmtNum(r.trained_sp_total)} SP\n含未分配合计 ${fmtNum(r.combined_sp_total)} SP\n角色数 ${r.char_count}${iskLineText}`;
         return `<circle cx="${x(i).toFixed(1)}" cy="${y(r.total_extractors).toFixed(1)}" r="4" fill="#ffd55a" style="cursor:pointer"><title>${escapeHtml(tip)}</title></circle>`;
       }).join("")
+    : "";
+  const iskDots = n <= 45
+    ? iskPoints.map((point) => point
+        ? `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5" fill="#58a6ff" style="cursor:pointer"><title>${escapeHtml(`${point.date}\n总 ISK ${fmtIsk(point.value)}`)}</title></circle>`
+        : "").join("")
     : "";
   const evByDate = {};
   events.forEach((ev) => {
@@ -1037,9 +1128,11 @@ function renderHistory(rows, events) {
 
   const mid = n > 2 ? rows[Math.floor(n / 2)].date : "";
   const xl = `${rows[0].date}${mid ? `<text x="${x(Math.floor(n / 2))}" y="${H - 8}" text-anchor="middle" fill="#8b949e" font-size="11">${escapeHtml(mid)}</text>` : ""}<text x="${x(n - 1)}" y="${H - 8}" text-anchor="end" fill="#8b949e" font-size="11">${escapeHtml(rows[n - 1].date)}</text>`;
+  const panelTitles = `<text x="${padL}" y="18" text-anchor="start" fill="#f2a900" font-size="12" font-weight="700">可提取技能器数量</text>` +
+    (hasIskPanel ? `<text x="${padL}" y="${bottomPanelTop - 10}" text-anchor="start" fill="#58a6ff" font-size="12" font-weight="700">总 ISK</text><line x1="${padL}" y1="192" x2="${W - padR}" y2="192" stroke="#2d333b" stroke-width="1"/>` : "");
 
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="background:var(--panel);border:1px solid var(--line);border-radius:10px">
-    ${grid}${area}${line}${dots}${markers}${xl}
+    ${panelTitles}${topGrid}${area}${line}${bottomGrid}${hasIskPanel ? iskLine : ""}${dots}${hasIskPanel ? iskDots : ""}${markers}${xl}
   </svg>`;
 
   if (eventsBox) {

@@ -186,12 +186,21 @@ def _record_today_history():
         total_ext = sum(extractor_stats(r["total_sp"], r["unallocated_sp"])[1] for r in rows)
         trained = sum(r["total_sp"] or 0 for r in rows)
         combined = sum((r["total_sp"] or 0) + (r["unallocated_sp"] or 0) for r in rows)
+        personal_isk = sum(float(r["wallet_isk"] or 0) for r in rows)
+        corporation_wallets = {}
+        for row in rows:
+            corporation_id = row.get("corporation_id")
+            wallet_isk = row.get("corporation_wallet_isk")
+            if corporation_id and wallet_isk is not None:
+                corporation_wallets[str(corporation_id)] = float(wallet_isk)
+        total_isk = personal_isk + sum(corporation_wallets.values())
         db.upsert_history(
             datetime.now().strftime("%Y-%m-%d"),
             total_ext,
             trained,
             combined,
             len(rows),
+            total_isk,
         )
     except Exception:
         pass
@@ -224,6 +233,39 @@ def refresh_character(esi: EsiClient, character_id: int, force: bool = False):
         skills = esi.get_character_skills(character_id, access_token)
         queue = esi.get_skill_queue(character_id, access_token)
         wallet_isk = esi.get_character_wallet(character_id, access_token)
+        corporation_id = row.get("corporation_id")
+        corporation_name = row.get("corporation_name")
+        corporation_wallet_isk = row.get("corporation_wallet_isk")
+        corporation_wallet_json = row.get("corporation_wallet_json")
+        corporation_wallet_error = row.get("corporation_wallet_error")
+        # 没有权限的角色只探测一次；成功访问过的角色持续刷新；重新登录会清除错误标记并重试。
+        should_probe_corporation_wallet = corporation_wallet_isk is not None or not corporation_wallet_error
+        try:
+            public_getter = getattr(esi, "get_character_public_info", None)
+            if public_getter and (not corporation_id or should_probe_corporation_wallet):
+                public_info = public_getter(character_id)
+                corporation_id = int(public_info.get("corporation_id") or 0) or None
+            if corporation_id and should_probe_corporation_wallet:
+                corp_getter = getattr(esi, "get_corporation_info", None)
+                if corp_getter:
+                    corporation_name = (corp_getter(corporation_id) or {}).get("name")
+                wallet_getter = getattr(esi, "get_corporation_wallets", None)
+                if wallet_getter:
+                    divisions = wallet_getter(corporation_id, access_token)
+                    corporation_wallet_isk = sum(
+                        float(item.get("balance") or 0)
+                        for item in divisions if isinstance(item, dict)
+                    )
+                    corporation_wallet_json = json.dumps(divisions, ensure_ascii=False)
+                    corporation_wallet_error = None
+        except EsiReauthError:
+            corporation_wallet_error = "军团钱包需要重新授权，或当前角色没有军团钱包访问权限。"
+            corporation_wallet_isk = None
+            corporation_wallet_json = None
+        except EsiError as exc:
+            corporation_wallet_error = exc.message
+            corporation_wallet_isk = None
+            corporation_wallet_json = None
         try:
             attributes_getter = getattr(esi, "get_character_attributes", None)
             attributes = attributes_getter(character_id, access_token) if attributes_getter else None
@@ -273,6 +315,11 @@ def refresh_character(esi: EsiClient, character_id: int, force: bool = False):
         attributes_json=json.dumps(attributes, ensure_ascii=False) if attributes is not None else None,
         implants_json=json.dumps(implants, ensure_ascii=False) if implants is not None else None,
         queue_json=json.dumps(queue_view, ensure_ascii=False),
+        corporation_id=corporation_id,
+        corporation_name=corporation_name,
+        corporation_wallet_isk=corporation_wallet_isk,
+        corporation_wallet_json=corporation_wallet_json,
+        corporation_wallet_error=corporation_wallet_error,
     )
     _auto_finance_drop(
         esi, row.get("account_name"), character_id, row.get("character_name"),
@@ -340,8 +387,88 @@ def training_speed_per_hour(queue) -> int | None:
     return int(round((end_sp - start_sp) / hours))
 
 
-def character_payload(row: dict) -> dict:
+def infer_training_clone_status(skills, queue, expected_rate) -> str | None:
+    """结合技能压制和队列实际速度判断 Alpha。"""
+    status = infer_clone_status(skills)
+    if status == "alpha":
+        return status
+    actual_rate = training_speed_per_hour(queue)
+    if expected_rate and actual_rate:
+        ratio = actual_rate / expected_rate
+        if 0.47 <= ratio <= 0.53:
+            return "alpha_inferred"
+    return status
+
+
+def character_training_speed(row: dict, queue=None, clone_status=None) -> int | None:
+    """按当前训练技能的主/副属性计算角色训练速度；Alpha 减半。"""
+    if queue is None:
+        try:
+            queue = json.loads(row.get("queue_json") or "[]")
+        except (TypeError, ValueError):
+            queue = []
+    if not queue:
+        return None
+    first = queue[0] if isinstance(queue[0], dict) else {}
+    try:
+        skill_id = int(first.get("skill_id") or 0)
+    except (TypeError, ValueError):
+        skill_id = 0
+    if skill_id:
+        skill_attrs = name_index.get_type_attrs([skill_id]).get(skill_id, {})
+        if skill_attrs.get(180) and skill_attrs.get(181):
+            rate, _ = fitting.skill_training_rate(skill_attrs, row)
+            if clone_status is None:
+                try:
+                    skills = json.loads(row.get("skills_json") or "{}")
+                except (TypeError, ValueError):
+                    skills = {}
+                clone_status = infer_clone_status(skills)
+            if clone_status in ("alpha", "alpha_inferred"):
+                rate *= 0.5
+            return int(round(rate))
+    return training_speed_per_hour(queue)
+
+
+def individual_clone_status(row: dict) -> str | None:
     queue = json.loads(row["queue_json"]) if row.get("queue_json") else []
+    skills = json.loads(row["skills_json"]) if row.get("skills_json") else None
+    expected_rate = character_training_speed(row, queue, "omega")
+    return infer_training_clone_status(skills, queue, expected_rate)
+
+
+def account_clone_statuses(rows: list) -> dict:
+    """按手动账号分组汇总 Alpha/Omega；账号内任一角色为 Alpha，则全组为 Alpha。"""
+    groups = {}
+    for row in rows:
+        account = (row.get("account_name") or "").strip()
+        if not account:
+            continue
+        groups.setdefault(account, []).append(row)
+    statuses = {}
+    for account, members in groups.items():
+        member_statuses = [individual_clone_status(row) for row in members]
+        if "alpha" in member_statuses:
+            status = "alpha"
+        elif "alpha_inferred" in member_statuses:
+            status = "alpha_inferred"
+        elif "omega" in member_statuses:
+            status = "omega"
+        else:
+            status = None
+        for row in members:
+            statuses[int(row["character_id"])] = status
+    return statuses
+
+
+def character_payload(row: dict, clone_status_override=None) -> dict:
+    queue = json.loads(row["queue_json"]) if row.get("queue_json") else []
+    skills = json.loads(row["skills_json"]) if row.get("skills_json") else None
+    clone_status = clone_status_override or individual_clone_status(row)
+    try:
+        corporation_wallets = json.loads(row.get("corporation_wallet_json")) if row.get("corporation_wallet_json") else []
+    except (TypeError, ValueError):
+        corporation_wallets = []
     return {
         "character_id": row["character_id"],
         "character_name": row["character_name"],
@@ -351,15 +478,18 @@ def character_payload(row: dict) -> dict:
         "extractable_sp": extractor_stats(row["total_sp"], row["unallocated_sp"])[0],
         "extractor_count": extractor_stats(row["total_sp"], row["unallocated_sp"])[1],
         "wallet_isk": row["wallet_isk"],
+        "corporation_id": row["corporation_id"],
+        "corporation_name": row["corporation_name"],
+        "corporation_wallet_isk": row["corporation_wallet_isk"],
+        "corporation_wallets": corporation_wallets,
+        "corporation_wallet_error": row["corporation_wallet_error"],
         "owner_hash": row["owner_hash"],
         "account_name": row["account_name"],
-        "clone_status": infer_clone_status(
-            json.loads(row["skills_json"]) if row.get("skills_json") else None
-        ),
+        "clone_status": clone_status,
         "attributes": json.loads(row["attributes_json"]) if row.get("attributes_json") else None,
         "implants": json.loads(row["implants_json"]) if row.get("implants_json") else None,
         "queue": queue,
-        "training_speed": training_speed_per_hour(queue),
+        "training_speed": character_training_speed(row, queue, clone_status),
         "last_updated": row["last_updated"],
         "needs_reauth": row["needs_reauth"],
         "auth_error": row["auth_error"],
@@ -435,7 +565,9 @@ def callback(
 @app.get("/api/characters")
 def api_characters():
     """仅返回本地缓存数据(立即响应);刷新由前端逐个轮流调用刷新接口完成,避免首屏阻塞。"""
-    return [character_payload(r) for r in db.list_characters()]
+    rows = db.list_characters()
+    statuses = account_clone_statuses(rows)
+    return [character_payload(r, statuses.get(int(r["character_id"]))) for r in rows]
 
 
 @app.post("/api/characters/{character_id}/refresh")
@@ -453,7 +585,9 @@ def api_refresh(character_id: int):
             raise HTTPException(status_code=500, detail=exc.message)
         except EsiError as exc:
             raise HTTPException(status_code=502, detail=exc.message)
-    return character_payload(db.get_character(character_id))
+    row = db.get_character(character_id)
+    statuses = account_clone_statuses(db.list_characters())
+    return character_payload(row, statuses.get(character_id))
 
 
 def _unit_extract_profit(items: list):
@@ -937,7 +1071,8 @@ def api_refresh_all():
             except (EsiError, HTTPException):
                 pass  # 单个角色失败不影响其它角色
         rows = db.list_characters()
-    return [character_payload(r) for r in rows]
+    statuses = account_clone_statuses(rows)
+    return [character_payload(r, statuses.get(int(r["character_id"]))) for r in rows]
 
 def _normalize_account(name):
     return (name or "").strip() or None
@@ -1074,7 +1209,9 @@ def api_set_account_name(character_id: int, payload: AccountNameIn):
         raise HTTPException(status_code=404, detail="角色不存在")
     name = (payload.account_name or "").strip()
     db.set_account_name(character_id, name or None)
-    return character_payload(db.get_character(character_id))
+    row = db.get_character(character_id)
+    statuses = account_clone_statuses(db.list_characters())
+    return character_payload(row, statuses.get(character_id))
 
 @app.delete("/api/characters/{character_id}")
 def api_delete(character_id: int):

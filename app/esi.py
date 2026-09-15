@@ -142,6 +142,30 @@ class EsiClient:
         if resp.status_code == 200:
             return float(resp.json())
         self._raise_esi_error(resp, "读取钱包")
+
+    def get_character_public_info(self, character_id: int) -> dict:
+        """读取角色公开信息，主要用于获取 corporation_id。"""
+        resp = self._esi_request("GET", f"/latest/characters/{character_id}/")
+        if resp.status_code == 200:
+            return resp.json()
+        self._raise_esi_error(resp, "读取角色公开信息")
+
+    def get_corporation_info(self, corporation_id: int) -> dict:
+        """读取军团公开信息。"""
+        resp = self._esi_request("GET", f"/latest/corporations/{corporation_id}/")
+        if resp.status_code == 200:
+            return resp.json()
+        self._raise_esi_error(resp, "读取军团信息")
+
+    def get_corporation_wallets(self, corporation_id: int, access_token: str) -> list:
+        """读取角色有权访问的军团钱包分部余额。"""
+        resp = self._esi_request(
+            "GET", f"/latest/corporations/{corporation_id}/wallets/", access_token=access_token
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data if isinstance(data, list) else []
+        self._raise_esi_error(resp, "读取军团钱包")
     def get_skill_queue(self, character_id: int, access_token: str) -> list:
         """读取角色技能队列。"""
         resp = self._esi_request(

@@ -41,6 +41,11 @@ def init_db():
                 total_sp       INTEGER,
                 unallocated_sp INTEGER,
                 wallet_isk     REAL,
+                corporation_id INTEGER,
+                corporation_name TEXT,
+                corporation_wallet_isk REAL,
+                corporation_wallet_json TEXT,
+                corporation_wallet_error TEXT,
                 skills_json    TEXT,
                 attributes_json TEXT,
                 implants_json  TEXT,
@@ -69,6 +74,7 @@ def init_db():
                 trained_sp_total INTEGER NOT NULL,
                 combined_sp_total INTEGER NOT NULL,
                 char_count       INTEGER NOT NULL,
+                total_isk        REAL,
                 updated_at       TEXT
             )
             """
@@ -120,6 +126,16 @@ def init_db():
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(characters)").fetchall()}
         if "wallet_isk" not in cols:
             conn.execute("ALTER TABLE characters ADD COLUMN wallet_isk REAL")
+        if "corporation_id" not in cols:
+            conn.execute("ALTER TABLE characters ADD COLUMN corporation_id INTEGER")
+        if "corporation_name" not in cols:
+            conn.execute("ALTER TABLE characters ADD COLUMN corporation_name TEXT")
+        if "corporation_wallet_isk" not in cols:
+            conn.execute("ALTER TABLE characters ADD COLUMN corporation_wallet_isk REAL")
+        if "corporation_wallet_json" not in cols:
+            conn.execute("ALTER TABLE characters ADD COLUMN corporation_wallet_json TEXT")
+        if "corporation_wallet_error" not in cols:
+            conn.execute("ALTER TABLE characters ADD COLUMN corporation_wallet_error TEXT")
         if "owner_hash" not in cols:
             conn.execute("ALTER TABLE characters ADD COLUMN owner_hash TEXT")
         if "account_name" not in cols:
@@ -128,6 +144,9 @@ def init_db():
             conn.execute("ALTER TABLE characters ADD COLUMN attributes_json TEXT")
         if "implants_json" not in cols:
             conn.execute("ALTER TABLE characters ADD COLUMN implants_json TEXT")
+        hcols = {r["name"] for r in conn.execute("PRAGMA table_info(sp_history)").fetchall()}
+        if "total_isk" not in hcols:
+            conn.execute("ALTER TABLE sp_history ADD COLUMN total_isk REAL")
         fcols = {r["name"] for r in conn.execute("PRAGMA table_info(finance_entries)").fetchall()}
         if "unit_price" not in fcols:
             conn.execute("ALTER TABLE finance_entries ADD COLUMN unit_price REAL")
@@ -183,6 +202,9 @@ def upsert_character(
                 expires_at       = excluded.expires_at,
                 needs_reauth     = 0,
                 auth_error       = NULL,
+                corporation_wallet_isk = NULL,
+                corporation_wallet_json = NULL,
+                corporation_wallet_error = NULL,
                 owner_hash       = COALESCE(excluded.owner_hash, characters.owner_hash)
             """,
             (character_id, character_name, access_token, refresh_token, expires_at, owner_hash),
@@ -214,6 +236,11 @@ def update_character_data(
     wallet_isk=None,
     attributes_json: str | None = None,
     implants_json: str | None = None,
+    corporation_id=None,
+    corporation_name: str | None = None,
+    corporation_wallet_isk=None,
+    corporation_wallet_json: str | None = None,
+    corporation_wallet_error: str | None = None,
 ):
     with _write_lock, connect() as conn:
         conn.execute(
@@ -222,11 +249,18 @@ def update_character_data(
             SET total_sp = ?, unallocated_sp = ?, wallet_isk = ?, skills_json = ?,
                 attributes_json = COALESCE(?, attributes_json),
                 implants_json = COALESCE(?, implants_json), queue_json = ?,
+                corporation_id = COALESCE(?, corporation_id),
+                corporation_name = COALESCE(?, corporation_name),
+                corporation_wallet_isk = ?,
+                corporation_wallet_json = ?,
+                corporation_wallet_error = ?,
                 last_updated = ?, needs_reauth = 0, auth_error = NULL
             WHERE character_id = ?
             """,
             (total_sp, unallocated_sp, wallet_isk, skills_json, attributes_json,
-             implants_json, queue_json, _now_iso(), character_id),
+             implants_json, queue_json, corporation_id, corporation_name,
+             corporation_wallet_isk, corporation_wallet_json,
+             corporation_wallet_error, _now_iso(), character_id),
         )
 
 
@@ -349,21 +383,24 @@ def set_account_name(character_id: int, account_name):
 
 
 def upsert_history(date: str, total_extractors: int, trained_sp_total: int,
-                   combined_sp_total: int, char_count: int):
+                   combined_sp_total: int, char_count: int, total_isk=None):
     with _write_lock, connect() as conn:
         conn.execute(
             """
             INSERT INTO sp_history
-                (date, total_extractors, trained_sp_total, combined_sp_total, char_count, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (date, total_extractors, trained_sp_total, combined_sp_total,
+                 char_count, total_isk, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(date) DO UPDATE SET
                 total_extractors  = excluded.total_extractors,
                 trained_sp_total  = excluded.trained_sp_total,
                 combined_sp_total = excluded.combined_sp_total,
                 char_count        = excluded.char_count,
+                total_isk         = excluded.total_isk,
                 updated_at        = excluded.updated_at
             """,
-            (date, total_extractors, trained_sp_total, combined_sp_total, char_count, _now_iso()),
+            (date, total_extractors, trained_sp_total, combined_sp_total,
+             char_count, total_isk, _now_iso()),
         )
 
 

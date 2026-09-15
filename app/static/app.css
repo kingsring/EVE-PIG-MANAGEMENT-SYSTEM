@@ -425,6 +425,15 @@ h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.tile .wallet.corp b { color: #7ee787; }
+.tile .wallet-error {
+  margin-top: 4px;
+  color: #e3b341;
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .wallet-sub {
   margin-top: 4px;
   color: #8cc2ff;
