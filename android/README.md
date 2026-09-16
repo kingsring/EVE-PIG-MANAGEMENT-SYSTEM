@@ -47,6 +47,26 @@ python android/sync_python.py
 
 然后用 Android Studio 打开 `android/` 目录并运行构建。
 
+## 数据导入与导出
+
+APK 设置页提供：
+
+- `导出数据`：通过 Android 文件选择器导出 `eve_esi.db`
+- `导入数据`：选择电脑版 `eve_esi.db`，替换手机本地数据库
+
+导入流程：
+
+1. 关闭 Windows 版服务。
+2. 把电脑上的 `data/eve_esi.db` 发送到手机。
+3. 首次打开 APK，点击“导入数据”。
+4. 选择 `eve_esi.db`。
+5. 填写与电脑版相同的 CCP Client ID 和 Secret。
+6. 启动本地服务。
+
+应用成功启动后，顶部“设置”按钮会自动隐藏。之后需要重新进入设置或迁移数据时，长按顶部的“本地服务已启动”状态文字。
+
+导出的数据库包含 EVE refresh token，只能用于自己的设备迁移，不要分享给他人。
+
 ## Android SSO
 
 应用继续使用：

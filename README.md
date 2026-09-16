@@ -1,92 +1,100 @@
-# EVE 多角色技能点查看器
+# EVE 猪场管理系统
 
-本地自用的 Web 应用：通过 CCP 官方 EVE SSO 登录并绑定多个游戏角色，展示每个角色的**总技能点**、**技能队列（含当前训练进度）**，并可将有权限的军团钱包计入总 ISK。
+完全本地运行的 EVE 多角色管理工具，支持 Windows 和 Android。
 
-- 后端：Python 3.12 + FastAPI + httpx + SQLite（标准库）
-- 前端：FastAPI 直接托管的单页 HTML/CSS/原生 JS（无需 Node）
-- 仅监听 `127.0.0.1:8000`，数据存本机 `data/eve_esi.db`
+## 功能
 
-## 一、注册 CCP 开发者应用（一次性，需你自己完成）
+- 多角色技能点、技能队列和实时训练进度
+- Alpha/Omega 账号级状态推断
+- 个人钱包与有权限的军团钱包总 ISK
+- 每日总 ISK、可提取技能器走势
+- 市场行情、财务管理和配装规划
+- 技能训练方案最少重置优化
+- 历史完成技能节点
+- 数据导入、导出和本地迁移
 
-1. 用 EVE 账号登录 https://developers.eveonline.com ，进入 Applications → Create New Application。
-2. Connection Type 选择 **Authentication & API Access**；Permissions 勾选：
-   - `esi-skills.read_skills.v1`（读取技能点、技能属性）
-   - `esi-skills.read_skillqueue.v1`（读取技能队列）
-   - `esi-wallet.read_corporation_wallets.v1`（读取有权限的军团钱包，用于总 ISK）
-   - `esi-clones.read_implants.v1`（读取脑插，用于训练方案优化）
-3. Callback URL 填：`http://localhost:8000/callback`
-4. 创建后记下 **Client ID** 和 **Secret Key**。
-   - 注意：若之后修改权限范围，所有已绑定角色都需要重新授权。
+## Windows 启动
 
-## 二、安装与配置
+1. 安装 Python 3.12+，安装时勾选 `Add Python to PATH`。
+2. 双击 `启动.bat`。
+3. 首次启动会生成 `.env`，填写自己的 CCP 开发者应用凭据。
+4. 再次双击 `启动.bat`。
+5. 浏览器访问 `http://localhost:8000`。
 
-```powershell
-cd D:\game\eve_esi
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+CCP Callback URL：
 
-# 复制配置模板并填入你的 Client ID / Secret
-Copy-Item .env.example .env
-# 用编辑器打开 .env 填写 EVE_CLIENT_ID / EVE_CLIENT_SECRET
+```text
+http://localhost:8000/callback
 ```
 
-## 三、启动
+按功能需要申请以下权限：
 
-```powershell
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+- `esi-skills.read_skills.v1`
+- `esi-skills.read_skillqueue.v1`
+- `esi-wallet.read_character_wallet.v1`
+- `esi-wallet.read_corporation_wallets.v1`
+- `esi-clones.read_implants.v1`
+
+## Android APK
+
+项目包含完全本地运行的 Android 工程：
+
+- Kotlin + Android WebView
+- Chaquopy 内置 Python 3.12
+- 本地 FastAPI/Uvicorn 服务
+- SQLite、CCP 凭据和 EVE 令牌保存在应用私有目录
+- `data/item_index.db` 随 APK 打包，首次启动复制到私有目录
+- 不依赖外部业务服务器
+
+在 GitHub 仓库中运行：
+
+```text
+Actions → Build Android APK → Run workflow
 ```
 
-浏览器打开 **http://localhost:8000**（请始终使用 localhost，与回调地址保持一致），点击右上角「＋ 添加角色」→ 跳转 EVE 官方登录页 → 选择角色并授权 → 自动回到首页显示数据。同一账号下的多个角色需分别登录一次。
+构建完成后，在运行记录的 `Artifacts` 中下载 APK。
 
-- **刷新**：卡片上的“刷新”按钮立即更新该角色；打开首页时数据超过 5 分钟会自动刷新。
-- **移除**：删除该角色及其本地令牌与缓存。
-- 若角色“授权失效”（例如修改了游戏密码或应用权限变更），卡片会提示，点击“重新授权”重新登录一次即可。
+没有配置签名密钥时会生成 debug APK。正式 Release APK 的签名方法见 [android/README.md](android/README.md)。
 
-## 四、运行测试
+## 数据迁移
+
+### Windows → Android
+
+1. 关闭 Windows 版服务。
+2. 复制电脑上的 `data/eve_esi.db` 到手机。
+3. 首次打开 APK，在设置页点击“导入数据”。
+4. 选择 `eve_esi.db`。
+5. 填写与电脑版相同的 CCP Client ID 和 Secret。
+6. 启动本地服务。
+
+数据导入后会保留角色、令牌、军团钱包、财务、配装和训练方案。
+
+### Android → Windows
+
+1. 打开 APK 顶部设置。
+2. 点击“导出数据”。
+3. 将导出的 `eve_esi.db` 放到 Windows 项目的 `data/` 目录。
+4. 使用相同的 CCP 应用凭据启动 Windows 版。
+
+应用成功启动后，顶部设置按钮会自动隐藏。需要再次进入设置时，长按顶部的“本地服务已启动”状态文字。
+
+## 数据安全
+
+- Windows：`.env` 和 `data/eve_esi.db` 不要上传或分享。
+- Android：数据库和 CCP 凭据保存在应用私有目录。
+- 导出的 `eve_esi.db` 包含 EVE refresh token，只能用于自己的设备迁移。
+- 每个使用者必须创建自己的 CCP 应用，不能共用他人的 Client Secret。
+
+## 测试
 
 ```powershell
 python -m pytest -q
 ```
 
-## 目录结构
+## 物品索引
 
-```
-app/
-  main.py      # FastAPI 入口与路由（SSO 回调、JSON API、刷新逻辑）
-  esi.py       # EVE SSO / ESI 客户端与技能队列数据加工
-  db.py        # SQLite 存取
-  config.py    # 配置（读取 .env）
-  static/      # 前端页面
-data/          # SQLite 数据库（自动创建，已被 .gitignore 忽略）
-tests/         # 自动化测试（Mock CCP 接口，无需真实账号）
-```
-
-## 安全说明
-
-应用只面向本机个人使用：不提供公网访问、无 Web 端账号系统，令牌明文保存在本机数据库中。请不要把 `data/`、`.env` 或 `EVE_CLIENT_SECRET` 分享给他人；若日后要部署到公网，需另行加固（HTTPS、加密存储、访问控制等）。
-
-## 物品名本地索引（模糊搜索）
-
-市场页的"物品价格查询"支持中/英文**部分名称**模糊搜索，基于本地物品名索引
-（`data/item_index.db`，约 27k 个已发布物品的中英文名，数据来自 CCP 静态数据）。
-
-索引已在本机构建好。若索引被删除或换了机器，重新构建一次即可（一次性下载约 170MB）：
+`data/item_index.db` 已随项目提供。如果缺失，可重新构建：
 
 ```powershell
 python -m app.name_index --build
 ```
-
-其他可用命令：`python -m app.name_index --count`、`python -m app.name_index --search 灾难`、`python -m app.name_index --attach`（补齐物品分类信息，供市场页“按分类浏览”使用；本机已执行）。
-索引文件位于 `data/`（已被 .gitignore 忽略，不会提交）。
-
-## Android APK
-
-项目包含完全本地运行的 Android 版本：
-
-- Chaquopy 内置 Python 3.12 和 FastAPI
-- Android WebView 显示现有前端
-- SQLite、CCP 凭据和 EVE 令牌均保存在应用私有目录
-- `data/item_index.db` 随 APK 首次启动复制到私有目录
-
-构建和签名说明见 [android/README.md](android/README.md)。

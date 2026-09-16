@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -26,6 +27,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.net.HttpURLConnection
 import java.io.File
+import java.io.FileInputStream
 import java.net.URL
 
 class MainActivity : Activity() {
@@ -98,6 +100,10 @@ class MainActivity : Activity() {
             setPadding(28, 28, 28, 12)
             text = "首次使用请填写 CCP 开发者应用凭据"
         }
+        status.setOnLongClickListener {
+            openSettings()
+            true
+        }
         root.addView(status)
 
         settingsButton = Button(this).apply {
@@ -128,10 +134,25 @@ class MainActivity : Activity() {
             text = "启动本地服务"
         }
         startButton.setOnClickListener { startFromForm() }
+        val importButton = Button(this).apply {
+            text = "导入数据"
+            setOnClickListener { openImportPicker() }
+        }
+        val exportButton = Button(this).apply {
+            text = "导出数据"
+            setOnClickListener { openExportPicker() }
+        }
+        val privacyHint = TextView(this).apply {
+            setTextColor(Color.LTGRAY)
+            text = "导入/导出的数据库包含 EVE 登录令牌，请勿分享给他人。"
+        }
         configPanel.addView(clientId)
         configPanel.addView(clientSecret)
         configPanel.addView(callback)
         configPanel.addView(startButton)
+        configPanel.addView(importButton)
+        configPanel.addView(exportButton)
+        configPanel.addView(privacyHint)
         root.addView(configPanel)
 
         progress = ProgressBar(this).apply { visibility = View.GONE }
@@ -181,6 +202,91 @@ class MainActivity : Activity() {
         status.text = "修改凭据后重新启动本地服务"
     }
 
+    private fun databaseFile(): File = File(File(filesDir, "data"), "eve_esi.db")
+
+    private fun openImportPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/octet-stream"
+        }
+        startActivityForResult(intent, IMPORT_REQUEST)
+    }
+
+    private fun openExportPicker() {
+        if (!databaseFile().exists()) {
+            Toast.makeText(this, "还没有可导出的本地数据", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/octet-stream"
+            putExtra(Intent.EXTRA_TITLE, "eve_esi.db")
+        }
+        startActivityForResult(intent, EXPORT_REQUEST)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        when (requestCode) {
+            EXPORT_REQUEST -> exportDatabase(uri)
+            IMPORT_REQUEST -> importDatabase(uri)
+        }
+    }
+
+    private fun exportDatabase(uri: android.net.Uri) {
+        val stopIntent = Intent(this, ServerService::class.java).setAction(ServerService.ACTION_STOP)
+        startService(stopIntent)
+        Thread({
+            try {
+                Thread.sleep(600)
+                val db = databaseFile()
+                if (!db.exists()) throw IllegalStateException("数据库不存在")
+                try { SQLiteDatabase.openDatabase(db.path, null, SQLiteDatabase.OPEN_READWRITE).close() } catch (_: Throwable) {}
+                contentResolver.openOutputStream(uri)?.use { output ->
+                    FileInputStream(db).use { input -> input.copyTo(output) }
+                } ?: throw IllegalStateException("无法打开导出位置")
+                runOnUiThread { status.text = "数据已导出：$uri" }
+            } catch (error: Throwable) {
+                runOnUiThread { status.text = "导出失败：${error.message}" }
+            }
+        }, "eve-db-export").start()
+    }
+
+    private fun importDatabase(uri: android.net.Uri) {
+        val stopIntent = Intent(this, ServerService::class.java).setAction(ServerService.ACTION_STOP)
+        startService(stopIntent)
+        Thread({
+            try {
+                Thread.sleep(600)
+                val dataDir = File(filesDir, "data").apply { mkdirs() }
+                val temp = File(dataDir, "eve_esi.import.db")
+                contentResolver.openInputStream(uri)?.use { input -> temp.outputStream().use { input.copyTo(it) } }
+                    ?: throw IllegalStateException("无法读取所选文件")
+                val header = ByteArray(16)
+                FileInputStream(temp).use { if (it.read(header) != 16) throw IllegalStateException("数据库文件为空") }
+                if (header.toString(Charsets.US_ASCII) != "SQLite format 3 ") {
+                    throw IllegalStateException("所选文件不是有效的 SQLite 数据库")
+                }
+                val db = databaseFile()
+                if (db.exists()) db.copyTo(File(dataDir, "eve_esi.backup.db"), overwrite = true)
+                temp.copyTo(db, overwrite = true)
+                temp.delete()
+                File(dataDir, "eve_esi.db-wal").delete()
+                File(dataDir, "eve_esi.db-shm").delete()
+                runOnUiThread {
+                    status.text = "数据导入成功，正在重新启动服务"
+                    val id = prefs.getString(KEY_CLIENT_ID, "") ?: ""
+                    val secret = prefs.getString(KEY_CLIENT_SECRET, "") ?: ""
+                    if (id.isNotBlank() && secret.isNotBlank()) startServerAndWait(id, secret)
+                }
+            } catch (error: Throwable) {
+                runOnUiThread { status.text = "导入失败：${error.message}" }
+            }
+        }, "eve-db-import").start()
+    }
+
     private fun startServerAndWait(clientId: String, clientSecret: String) {
         val intent = Intent(this, ServerService::class.java).apply {
             action = ServerService.ACTION_START
@@ -214,6 +320,7 @@ class MainActivity : Activity() {
                 progress.visibility = View.GONE
                 if (ready) {
                     status.text = "本地服务已启动"
+                    settingsButton.visibility = View.GONE
                     webView.loadUrl("http://127.0.0.1:8000/")
                 } else {
                     val detail = startupError.lineSequence().toList().takeLast(5).joinToString("\n")
@@ -235,6 +342,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val EXPORT_REQUEST = 2001
+        private const val IMPORT_REQUEST = 2002
         private const val KEY_CLIENT_ID = "client_id"
         private const val KEY_CLIENT_SECRET = "client_secret"
         private const val KEY_INDEX_VERSION = "index_version"
