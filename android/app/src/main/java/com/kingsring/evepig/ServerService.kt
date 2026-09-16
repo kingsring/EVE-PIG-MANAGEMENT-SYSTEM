@@ -8,6 +8,8 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
+import java.io.File
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 
@@ -42,11 +44,16 @@ class ServerService : Service() {
         val clientSecret = intent?.getStringExtra(EXTRA_CLIENT_SECRET) ?: ""
         val port = intent?.getIntExtra(EXTRA_PORT, 8000) ?: 8000
 
+        val errorFile = File(filesDir, "server_error.txt")
+        if (errorFile.exists()) errorFile.delete()
+
         serverThread = Thread({
             try {
                 if (!Python.isStarted()) {
                     Python.start(AndroidPlatform(applicationContext))
                 }
+                val dataDir = File(filesDir, "data")
+                dataDir.mkdirs()
                 Python.getInstance()
                     .getModule("android_bridge")
                     .callAttr(
@@ -54,11 +61,13 @@ class ServerService : Service() {
                         clientId,
                         clientSecret,
                         "http://localhost:$port/callback",
-                        filesDir.absolutePath,
+                        dataDir.absolutePath,
                         "127.0.0.1",
                         port,
                     )
-            } catch (_: Exception) {
+            } catch (error: Throwable) {
+                Log.e("EVE_SERVER", "Python server failed", error)
+                errorFile.writeText(error.stackTraceToString())
                 stopSelf()
             }
         }, "eve-fastapi-server").also { it.start() }
@@ -76,7 +85,7 @@ class ServerService : Service() {
             if (Python.isStarted()) {
                 Python.getInstance().getModule("android_bridge").callAttr("stop_server")
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             // Server may not have started.
         }
         serverThread?.interrupt()

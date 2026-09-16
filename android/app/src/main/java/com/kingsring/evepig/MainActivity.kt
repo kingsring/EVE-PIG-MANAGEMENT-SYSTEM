@@ -25,6 +25,7 @@ import android.widget.Toast
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.net.HttpURLConnection
+import java.io.File
 import java.net.URL
 
 class MainActivity : Activity() {
@@ -190,8 +191,14 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
 
         Thread({
+            val errorFile = File(filesDir, "server_error.txt")
             var ready = false
-            for (attempt in 0 until 60) {
+            var startupError = ""
+            for (attempt in 0 until 120) {
+                if (errorFile.exists()) {
+                    startupError = runCatching { errorFile.readText().trim() }.getOrDefault("")
+                    break
+                }
                 try {
                     val conn = URL("http://127.0.0.1:8000/").openConnection() as HttpURLConnection
                     conn.connectTimeout = 800
@@ -209,7 +216,8 @@ class MainActivity : Activity() {
                     status.text = "本地服务已启动"
                     webView.loadUrl("http://127.0.0.1:8000/")
                 } else {
-                    status.text = "服务启动失败，请检查凭据或 Logcat"
+                    val detail = startupError.lineSequence().takeLast(5).joinToString("\n")
+                    status.text = if (detail.isBlank()) "服务启动失败，请检查凭据或 Logcat" else "服务启动失败：\n$detail"
                     Toast.makeText(this, "本地服务启动失败", Toast.LENGTH_LONG).show()
                 }
             }
