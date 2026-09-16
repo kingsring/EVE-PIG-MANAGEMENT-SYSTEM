@@ -17,6 +17,7 @@ shutil.copytree(
     target_python,
     ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
 )
+shutil.copy2(bridge_source, target_python / "android_bridge.py")
 
 target_index.parent.mkdir(parents=True, exist_ok=True)
 shutil.copy2(repo_dir / "data" / "item_index.db", target_index)

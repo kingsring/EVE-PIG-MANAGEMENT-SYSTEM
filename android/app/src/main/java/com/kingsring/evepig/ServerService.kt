@@ -55,7 +55,7 @@ class ServerService : Service() {
                 val dataDir = File(filesDir, "data")
                 dataDir.mkdirs()
                 Python.getInstance()
-                    .getModule("android_bridge")
+                    .getModule("app.android_bridge")
                     .callAttr(
                         "start_server",
                         clientId,
@@ -83,7 +83,7 @@ class ServerService : Service() {
     private fun stopServer() {
         try {
             if (Python.isStarted()) {
-                Python.getInstance().getModule("android_bridge").callAttr("stop_server")
+                Python.getInstance().getModule("app.android_bridge").callAttr("stop_server")
             }
         } catch (_: Throwable) {
             // Server may not have started.
