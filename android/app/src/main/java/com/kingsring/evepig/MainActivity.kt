@@ -216,7 +216,7 @@ class MainActivity : Activity() {
                     status.text = "本地服务已启动"
                     webView.loadUrl("http://127.0.0.1:8000/")
                 } else {
-                    val detail = startupError.lineSequence().takeLast(5).joinToString("\n")
+                    val detail = startupError.lineSequence().toList().takeLast(5).joinToString("\n")
                     status.text = if (detail.isBlank()) "服务启动失败，请检查凭据或 Logcat" else "服务启动失败：\n$detail"
                     Toast.makeText(this, "本地服务启动失败", Toast.LENGTH_LONG).show()
                 }
