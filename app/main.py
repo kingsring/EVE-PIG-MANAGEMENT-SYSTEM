@@ -687,6 +687,13 @@ def api_history(limit: int = 30):
     """按天返回历史“可提取总数”等汇总(自开始记录起)。"""
     return db.get_history(limit)
 
+def _model_dump(model) -> dict:
+    """兼容 Pydantic 1(Android/Chaquopy) 与 Pydantic 2(桌面版)。"""
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
+
+
 class FittingItemIn(BaseModel):
     type_id: int = 0
     qty: int = 1
@@ -784,12 +791,12 @@ def api_fitting_optimize_skills(payload: OptimizeSkillsIn):
     character = db.get_character(payload.character_id)
     if character is None:
         raise HTTPException(status_code=404, detail="角色不存在")
-    items = [i.model_dump() for i in payload.items]
+    items = [_model_dump(i) for i in payload.items]
     mode = payload.skill_mode if payload.skill_mode in ("online", "all4", "all5") else "online"
     regret_hours = payload.max_time_regret_hours if payload.max_time_regret_hours in (24, 72, 168) else 24
     analysis = fitting.analyze(
         payload.ship_type_id, items, character, skill_mode=mode,
-        extra_skills=[i.model_dump() for i in payload.extra_skills],
+        extra_skills=[_model_dump(i) for i in payload.extra_skills],
     )
     try:
         result = skill_optimizer.optimize_skill_plan(
@@ -814,7 +821,7 @@ def api_fitting_upgrade_skills(payload: UpgradeSkillsIn):
         if character is None:
             raise HTTPException(status_code=404, detail="角色不存在")
     return fitting.find_upgrade_skills(
-        payload.ship_type_id, [i.model_dump() for i in payload.items], character,
+        payload.ship_type_id, [_model_dump(i) for i in payload.items], character,
     )
 
 
@@ -883,15 +890,15 @@ def api_fitting_analyze(payload: AnalyzeIn):
         character = db.get_character(payload.character_id)
         if character is None:
             raise HTTPException(status_code=404, detail="角色不存在")
-    items = [i.model_dump() for i in payload.items]
+    items = [_model_dump(i) for i in payload.items]
     mode = payload.skill_mode if payload.skill_mode in ("online", "all4", "all5") else "online"
-    return fitting.analyze(payload.ship_type_id, items, character, skill_mode=mode, extra_skills=[i.model_dump() for i in payload.extra_skills])
+    return fitting.analyze(payload.ship_type_id, items, character, skill_mode=mode, extra_skills=[_model_dump(i) for i in payload.extra_skills])
 
 
 @app.post("/api/fitting/export")
 def api_fitting_export(payload: ExportIn):
     """按 CCP 官方 EFT 格式导出配装(英文名)。"""
-    items = [i.model_dump() for i in payload.items]
+    items = [_model_dump(i) for i in payload.items]
     text = fitting.export_eft(payload.ship_type_id, items, payload.name)
     return {"text": text}
 
