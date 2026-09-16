@@ -48,6 +48,11 @@ class MainActivity : Activity() {
         buildUi()
         requestNotificationPermissionIfNeeded()
 
+        if (intent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)) {
+            openSettings()
+            return
+        }
+
         val savedId = prefs.getString(KEY_CLIENT_ID, "") ?: ""
         val savedSecret = prefs.getString(KEY_CLIENT_SECRET, "") ?: ""
         if (savedId.isNotBlank() && savedSecret.isNotBlank()) {
@@ -199,7 +204,8 @@ class MainActivity : Activity() {
         settingsButton.visibility = View.GONE
         progress.visibility = View.GONE
         webView.visibility = View.GONE
-        status.text = "修改凭据后重新启动本地服务"
+        status.visibility = View.VISIBLE
+        status.text = "修改凭据、导入或导出数据"
     }
 
     private fun databaseFile(): File = File(File(filesDir, "data"), "eve_esi.db")
@@ -319,7 +325,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 progress.visibility = View.GONE
                 if (ready) {
-                    status.text = "本地服务已启动"
+                    status.visibility = View.GONE
                     settingsButton.visibility = View.GONE
                     webView.loadUrl("http://127.0.0.1:8000/")
                 } else {
@@ -337,11 +343,20 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent?.getBooleanExtra(EXTRA_OPEN_SETTINGS, false) == true) {
+            setIntent(intent)
+            openSettings()
+        }
+    }
+
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 
     companion object {
+        const val EXTRA_OPEN_SETTINGS = "open_settings"
         private const val EXPORT_REQUEST = 2001
         private const val IMPORT_REQUEST = 2002
         private const val KEY_CLIENT_ID = "client_id"

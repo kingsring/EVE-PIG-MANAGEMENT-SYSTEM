@@ -112,6 +112,12 @@ class ServerService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val settingsIntent = PendingIntent.getActivity(
+            this,
+            2,
+            Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN_SETTINGS, true),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         val stopIntent = PendingIntent.getService(
             this,
             1,
@@ -129,6 +135,7 @@ class ServerService : Service() {
             .setContentTitle("EVE 猪场管理系统")
             .setContentText("本地服务正在运行")
             .setContentIntent(openIntent)
+            .addAction(0, "设置", settingsIntent)
             .addAction(0, "停止服务", stopIntent)
             .setOngoing(true)
             .build()
